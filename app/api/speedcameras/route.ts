@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Radar/1.0 (https://teslanav-com-eta.vercel.app)",
+        "User-Agent": "Radar/1.0 (https://radar-tesla.vercel.app)",
       },
       body: `data=${encodeURIComponent(query)}`,
     });

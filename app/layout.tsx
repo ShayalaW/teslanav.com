@@ -10,7 +10,7 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const siteUrl = "https://teslanav-com-eta.vercel.app";
+const siteUrl = "https://radar-tesla.vercel.app";
 const siteName = "Radar";
 const siteDescription = "Radar brings real-time, crowd-sourced police alerts, speed camera warnings, accident reports, and road hazard notifications to your Tesla's browser. Built by drivers, for drivers.";
 
@@ -275,7 +275,7 @@ export default function RootLayout({
             )}
             <Script
               data-website-id="dfid_RO5g2rWwS6cGfyTS7wGGW"
-              data-domain="teslanav.com"
+              data-domain="radar-tesla.vercel.app"
               src="/js/script.js"
               strategy="afterInteractive"
             />

@@ -1748,7 +1748,7 @@ function LiveHome() {
                 <TeslaIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-white text-sm font-medium">Tesla Browser</p>
-                  <p className="text-gray-400 text-xs">Open teslanav-com-eta.vercel.app in your Tesla&apos;s browser for the best experience</p>
+                  <p className="text-gray-400 text-xs">Open radar-tesla.vercel.app in your Tesla&apos;s browser for the best experience</p>
                 </div>
               </div>
               
