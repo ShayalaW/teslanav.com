@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import posthog from "posthog-js";
 
 // Increment this version whenever you want to show the changelog again
-const CHANGELOG_VERSION = "2";
+const CHANGELOG_VERSION = "1";
 
 interface ChangelogModalProps {
   isDarkMode: boolean;
+  externalOpen?: boolean;
+  onExternalClose?: () => void;
 }
 
-export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
+export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: ChangelogModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
@@ -18,7 +20,7 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
   // Check localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const seenVersion = localStorage.getItem("teslanav-changelog-version");
+      const seenVersion = localStorage.getItem("radar-changelog-version");
       if (seenVersion !== CHANGELOG_VERSION) {
         setIsOpen(true);
         posthog.capture("changelog_shown", { version: CHANGELOG_VERSION });
@@ -26,9 +28,11 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
     }
   }, []);
 
+  const effectiveOpen = isOpen || !!externalOpen;
+
   // Handle animation states
   useEffect(() => {
-    if (isOpen) {
+    if (effectiveOpen) {
       setShouldRender(true);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -42,16 +46,17 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [effectiveOpen]);
 
   const handleClose = useCallback(() => {
     // Mark as seen
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-changelog-version", CHANGELOG_VERSION);
+      localStorage.setItem("radar-changelog-version", CHANGELOG_VERSION);
     }
     setIsOpen(false);
+    onExternalClose?.();
     posthog.capture("changelog_dismissed", { version: CHANGELOG_VERSION });
-  }, []);
+  }, [onExternalClose]);
 
   if (!shouldRender) return null;
 
@@ -110,7 +115,7 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
           <div className="space-y-10">
             {/* Version Header */}
             <div>
-              <h3 className="text-2xl font-semibold mb-1">Radar</h3>
+              <h3 className="text-2xl font-semibold mb-1">Radar v1.0</h3>
               <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                 September 2026
               </p>
@@ -119,32 +124,39 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
             {/* Changelog Items */}
             <div className="space-y-8">
               <div>
-                <h4 className="text-xl font-medium mb-3">TeslaNav is now Radar</h4>
+                <h4 className="text-xl font-medium mb-3">Meet Radar</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  New name, new look. A clean black interface with a single red accent, designed to feel at home in your Tesla.
+                  Real-time cop, hazard, and closure alerts from drivers on the road, right in your Tesla&apos;s browser. No app to install, nothing to sign up for.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Report Cops &amp; Hazards</h4>
+                <h4 className="text-xl font-medium mb-3">Report in One Tap</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  Tap the red Report button and drop a hidden cop, visible cop, hazard, crash, or closure at your location. Every report shows up on the map for every driver instantly.
+                  See something? Tap the red Report button and it drops at your exact spot - hidden cop, visible cop, hazard, crash, or closure. Every driver with Radar open sees it instantly.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Reports Stay Honest</h4>
+                <h4 className="text-xl font-medium mb-3">Alerts That Stay Fresh</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  Reports expire on their own. When you drive past one, answer &quot;Still there?&quot; to keep it alive - enough &quot;Gone&quot; votes and it disappears for everyone.
+                  Stale reports fade away on their own. Drive past one and answer &quot;Still there?&quot; - a yes keeps it live, enough &quot;gone&quot; votes clear it for everyone.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Why It Matters</h4>
+                <h4 className="text-xl font-medium mb-3">Built for the Tesla Browser</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  The Waze data feed is currently blocked, so driver reports are the heartbeat of Radar. More drivers reporting means better coverage for everyone.
+                  Big touch targets, high contrast, and a map-first layout made for glancing at a stoplight, not reading.
                 </p>
               </div>
+
+              <p className={`pt-2 text-xs ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
+                Credits: built on the{" "}
+                <a href="https://teslanav.com" target="_blank" rel="noopener noreferrer" className="underline">
+                  open-source TeslaNav project
+                </a>.
+              </p>
             </div>
           </div>
         </div>

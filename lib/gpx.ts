@@ -1,5 +1,5 @@
 /**
- * GPX (GPS Exchange Format) utility functions for TeslaNav
+ * GPX (GPS Exchange Format) utility functions for Radar
  * Handles generation, parsing, and manipulation of GPX data
  */
 
@@ -8,7 +8,7 @@ import type { TrackPoint, GPXData, RecordingSession } from "@/types/gpx";
 const GPX_VERSION = "1.1";
 const GPX_CREATOR = "Radar";
 const GPX_NAMESPACE = "http://www.topografix.com/GPX/1/1";
-const TESLANAV_NAMESPACE = "http://teslanav.com/gpx/extensions";
+const RADAR_NAMESPACE = "https://radar-tesla.vercel.app/gpx/extensions";
 
 /**
  * Generate a GPX XML string from track points
@@ -19,13 +19,13 @@ export function generateGPX(points: TrackPoint[], name: string): string {
   const trackPoints = points.map(point => {
     const extensions = [];
     if (point.heading !== undefined) {
-      extensions.push(`        <teslanav:heading>${point.heading.toFixed(1)}</teslanav:heading>`);
+      extensions.push(`        <radar:heading>${point.heading.toFixed(1)}</radar:heading>`);
     }
     if (point.speed !== undefined) {
-      extensions.push(`        <teslanav:speed>${point.speed.toFixed(2)}</teslanav:speed>`);
+      extensions.push(`        <radar:speed>${point.speed.toFixed(2)}</radar:speed>`);
     }
     if (point.accuracy !== undefined) {
-      extensions.push(`        <teslanav:accuracy>${point.accuracy.toFixed(1)}</teslanav:accuracy>`);
+      extensions.push(`        <radar:accuracy>${point.accuracy.toFixed(1)}</radar:accuracy>`);
     }
     
     const extensionsBlock = extensions.length > 0
@@ -44,7 +44,7 @@ export function generateGPX(points: TrackPoint[], name: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="${GPX_VERSION}" creator="${GPX_CREATOR}"
   xmlns="${GPX_NAMESPACE}"
-  xmlns:teslanav="${TESLANAV_NAMESPACE}">
+  xmlns:radar="${RADAR_NAMESPACE}">
   <metadata>
     <name>${escapeXml(name)}</name>
     <time>${now}</time>
@@ -91,11 +91,11 @@ export function parseGPX(gpxString: string): GPXData {
         const time = trkpt.querySelector("time")?.textContent || new Date().toISOString();
         const elevation = trkpt.querySelector("ele")?.textContent;
         
-        // Parse TeslaNav extensions
+        // Parse Radar extensions (namespace-agnostic: legacy teslanav: exports still parse)
         const extensions = trkpt.querySelector("extensions");
-        const heading = extensions?.querySelector("heading")?.textContent;
-        const speed = extensions?.querySelector("speed")?.textContent;
-        const accuracy = extensions?.querySelector("accuracy")?.textContent;
+        const heading = extensions?.getElementsByTagNameNS("*", "heading")[0]?.textContent;
+        const speed = extensions?.getElementsByTagNameNS("*", "speed")[0]?.textContent;
+        const accuracy = extensions?.getElementsByTagNameNS("*", "accuracy")[0]?.textContent;
         
         const point: TrackPoint = { lat, lon, time };
         if (elevation) point.elevation = parseFloat(elevation);

@@ -1,7 +1,7 @@
-// TeslaNav Service Worker for Map Tile Caching
+// Radar Service Worker for Map Tile Caching
 // Caches Mapbox tiles for 7 days to reduce API calls
 
-const CACHE_NAME = 'teslanav-tiles-v1';
+const CACHE_NAME = 'radar-tiles-v1';
 const TILE_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 // Patterns for resources we want to cache
@@ -26,7 +26,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name.startsWith('teslanav-') && name !== CACHE_NAME)
+          .filter((name) => (name.startsWith('teslanav-') || name.startsWith('radar-')) && name !== CACHE_NAME)
           .map((name) => {
             console.log('[SW] Deleting old cache:', name);
             return caches.delete(name);

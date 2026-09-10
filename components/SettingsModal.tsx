@@ -427,10 +427,13 @@ export function SettingsModal({
               `}>
                 <div className="text-lg font-medium">Radar</div>
                 <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  Crowd-sourced driver alerts for Tesla
+                  Crowd-sourced driver alerts for your Tesla
                 </div>
-                <div className={`text-sm mt-2 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>
-                  Built on the open-source TeslaNav project
+                <div className={`text-xs mt-3 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
+                  Credits: built on the{" "}
+                  <a href="https://teslanav.com" target="_blank" rel="noopener noreferrer" className="underline">
+                    open-source TeslaNav project
+                  </a>.
                 </div>
               </div>
             </div>

@@ -82,6 +82,7 @@ function LiveHome() {
   });
   const [isCentered, setIsCentered] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   const [showWazeAlerts, setShowWazeAlerts] = useState(true);
   const [showSpeedCameras, setShowSpeedCameras] = useState(true);
   const [showTraffic, setShowTraffic] = useState(() => {
@@ -1313,11 +1314,14 @@ function LiveHome() {
       {/* Bottom Left - User Location + Settings */}
       <div className="absolute bottom-6 left-4 z-30 flex items-center gap-3">
         {latitude && longitude && (
-          <div
+          <button
+            onClick={() => setChangelogOpen(true)}
+            aria-label="Open what's new"
+            title="What's new"
             className={`
               flex items-center gap-3 px-4 h-16 rounded-xl backdrop-blur-xl
               ${getContainerStyles(effectiveDarkMode)}
-              shadow-lg border
+              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
             `}
           >
             <Image
@@ -1331,10 +1335,10 @@ function LiveHome() {
                 Radar
               </span>
               <span className={`text-[10px] ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                v0.3.0
+                v1.0
               </span>
             </div>
-          </div>
+          </button>
         )}
 
         {/* Settings Button */}
@@ -1635,7 +1639,7 @@ function LiveHome() {
 
       {/* Feedback Modal */}
       {/* Changelog Modal - Shows once per version */}
-      <ChangelogModal isDarkMode={effectiveDarkMode} />
+      <ChangelogModal isDarkMode={effectiveDarkMode} externalOpen={changelogOpen} onExternalClose={() => setChangelogOpen(false)} />
 
       {/* Global styles for police alert animations */}
       <style jsx global>{`
@@ -1794,14 +1798,7 @@ function ShutdownHome() {
         <h1 className="mt-3 text-3xl font-bold sm:text-4xl">Radar has been shutdown</h1>
         <p className="mt-6 text-base leading-7 text-neutral-200">{PROJECT_SHUTDOWN_MESSAGE}</p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <a
-            href="https://github.com/R44VC0RP/teslanav.com"
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
-          >
-            View on GitHub
-          </a>
+
         </div>
       </div>
     </main>

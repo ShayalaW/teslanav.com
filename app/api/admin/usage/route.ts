@@ -303,7 +303,7 @@ async function sendAlertEmail(
       </div>
 
       <p style="color: #6b7280; font-size: 14px;">
-        View your full usage dashboard at <a href="https://teslanav.com/admin" style="color: #3b82f6;">teslanav.com/admin</a>
+        View your full usage dashboard at <a href="https://radar-tesla.vercel.app/admin" style="color: #3b82f6;">radar-tesla.vercel.app/admin</a>
       </p>
       
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
@@ -321,7 +321,7 @@ ${usage.toLocaleString()} / ${limit.toLocaleString()} (${percentUsed}% used)
 
 Alert triggered: Usage has crossed the ${threshold}% threshold
 
-View your dashboard: https://teslanav.com/admin
+View your dashboard: https://radar-tesla.vercel.app/admin
   `.trim();
 
   try {
@@ -332,7 +332,7 @@ View your dashboard: https://teslanav.com/admin
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Radar Alerts <alerts@teslanav.com>",
+        from: "Radar Alerts <alerts@radar-tesla.vercel.app>",
         to: [ALERT_EMAIL],
         subject: `${statusEmoji} Radar: ${apiName} at ${percentUsed}% usage`,
         html: htmlContent,
