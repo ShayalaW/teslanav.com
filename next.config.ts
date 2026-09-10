@@ -6,6 +6,21 @@ const isProjectShutdown =
 
 const nextConfig: NextConfig = {
   /* config options here */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Loaded directly (not iframed) in the Tesla browser, so SAMEORIGIN is safe
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // The app needs geolocation for navigation; nothing else
+          { key: "Permissions-Policy", value: "geolocation=(self), camera=(), microphone=()" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     if (isProjectShutdown) {
       return [];

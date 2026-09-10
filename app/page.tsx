@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Map, type MapRef } from "@/components/Map";
 import { SettingsModal } from "@/components/SettingsModal";
-import { FeedbackModal } from "@/components/FeedbackModal";
 import { ChangelogModal } from "@/components/ChangelogModal";
 import { NavigateSearch } from "@/components/NavigateSearch";
 import { RouteSelector } from "@/components/RouteSelector";
@@ -83,7 +82,6 @@ function LiveHome() {
   });
   const [isCentered, setIsCentered] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
   const [showWazeAlerts, setShowWazeAlerts] = useState(true);
   const [showSpeedCameras, setShowSpeedCameras] = useState(true);
   const [showTraffic, setShowTraffic] = useState(() => {
@@ -108,13 +106,6 @@ function LiveHome() {
     return false;
   });
   const [showAvatarPulse, setShowAvatarPulse] = useState(true);
-  const [showSupportBanner, setShowSupportBanner] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-support-banner");
-      return saved !== null ? saved === "true" : true; // Default to showing the banner
-    }
-    return true;
-  });
   const mapRef = useRef<MapRef>(null);
 
   // Community reporting
@@ -634,14 +625,6 @@ function LiveHome() {
     }
   }, []);
 
-  // Save support banner preference to localStorage
-  const handleToggleSupportBanner = useCallback((value: boolean) => {
-    setShowSupportBanner(value);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-support-banner", value.toString());
-    }
-  }, []);
-
   // Calculate bearing between two points
   const calculateBearing = useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
     const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -1104,36 +1087,6 @@ function LiveHome() {
         );
       })()}
 
-      {/* Top Left - Support Banner */}
-      {showSupportBanner && (
-        <div className="absolute top-4 left-4 z-30">
-          <button
-            onClick={() => {
-              setShowSettings(true);
-              posthog.capture("support_banner_clicked");
-            }}
-            className={`
-              flex items-center gap-2 px-4 py-2.5 rounded-xl backdrop-blur-xl
-              ${getButtonStyles(effectiveDarkMode)}
-              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
-              group
-            `}
-          >
-            <span className="text-lg">❤️</span>
-            <span className="text-sm font-medium">Support this project</span>
-            <svg 
-              className={`w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity`} 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor" 
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      )}
-
       {/* Navigate Search + Destination Card (hidden - navigation in development) */}
       <div className="absolute top-16 left-4 z-30 flex flex-col gap-3 hidden">
         <NavigateSearch
@@ -1399,22 +1352,6 @@ function LiveHome() {
           aria-label="Settings"
         >
           <SettingsIcon className="w-7 h-7" />
-        </button>
-
-        {/* Feedback Button */}
-        <button
-          onClick={() => {
-            setShowFeedback(true);
-            posthog.capture("feedback_modal_opened");
-          }}
-          className={`
-            w-16 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center
-            ${getButtonStyles(effectiveDarkMode)}
-            shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
-          `}
-          aria-label="Send feedback"
-        >
-          <HelpIcon className="w-7 h-7" />
         </button>
 
         {/* Satellite Toggle Button */}
@@ -1688,8 +1625,6 @@ function LiveHome() {
         onToggleSatellite={handleToggleSatellite}
         showAvatarPulse={showAvatarPulse}
         onToggleAvatarPulse={setShowAvatarPulse}
-        showSupportBanner={showSupportBanner}
-        onToggleSupportBanner={handleToggleSupportBanner}
         policeAlertDistance={policeAlertDistance}
         onPoliceAlertDistanceChange={handlePoliceAlertDistanceChange}
         policeAlertSound={policeAlertSound}
@@ -1699,12 +1634,6 @@ function LiveHome() {
       />
 
       {/* Feedback Modal */}
-      <FeedbackModal
-        isOpen={showFeedback}
-        onClose={() => setShowFeedback(false)}
-        isDarkMode={effectiveDarkMode}
-      />
-
       {/* Changelog Modal - Shows once per version */}
       <ChangelogModal isDarkMode={effectiveDarkMode} />
 
@@ -1872,12 +1801,6 @@ function ShutdownHome() {
             className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
           >
             View on GitHub
-          </a>
-          <a
-            href="mailto:ryan@teslanav.com"
-            className="rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-100 transition-colors hover:bg-blue-500/30"
-          >
-            Email Ryan
           </a>
         </div>
       </div>

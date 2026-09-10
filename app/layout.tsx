@@ -214,7 +214,7 @@ const jsonLd = {
         },
         {
           "@type": "Question",
-          name: "Is TeslaNav free to use?",
+          name: "Is Radar free to use?",
           acceptedAnswer: {
             "@type": "Answer",
             text: "Yes! Radar is completely free to use. Just open it in your Tesla's browser and start driving with real-time alerts.",
@@ -222,7 +222,7 @@ const jsonLd = {
         },
         {
           "@type": "Question",
-          name: "Does TeslaNav work with all Tesla models?",
+          name: "Does Radar work with all Tesla models?",
           acceptedAnswer: {
             "@type": "Answer",
             text: "Radar works with any Tesla that has the in-car browser, including Model 3, Model Y, Model S, and Model X. It's also available on desktop browsers for trip planning.",

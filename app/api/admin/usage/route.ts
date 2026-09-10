@@ -17,7 +17,7 @@ import {
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "teslanav-admin-2024";
 const INBOUND_API_KEY = process.env.INBOUND_API_KEY;
 const INBOUND_API_URL = "https://inbound.new/api/v2/emails";
-const ALERT_EMAIL = process.env.ALERT_EMAIL || "ryan@mandarin3d.com";
+const ALERT_EMAIL = process.env.ALERT_EMAIL || "";
 
 // Map ApiName to API_LIMITS keys
 const API_LIMIT_MAP: Record<ApiName, number> = {
@@ -270,8 +270,8 @@ async function sendAlertEmail(
   limit: number,
   threshold: number
 ) {
-  if (!INBOUND_API_KEY) {
-    console.warn("INBOUND_API_KEY not configured, skipping email");
+  if (!INBOUND_API_KEY || !ALERT_EMAIL) {
+    console.warn("Alert email not configured, skipping email");
     return;
   }
 
@@ -332,9 +332,9 @@ View your dashboard: https://teslanav.com/admin
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "TeslaNav Alerts <alerts@teslanav.com>",
+        from: "Radar Alerts <alerts@teslanav.com>",
         to: [ALERT_EMAIL],
-        subject: `${statusEmoji} TeslaNav: ${apiName} at ${percentUsed}% usage`,
+        subject: `${statusEmoji} Radar: ${apiName} at ${percentUsed}% usage`,
         html: htmlContent,
         text: textContent,
       }),

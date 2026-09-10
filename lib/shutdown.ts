@@ -13,4 +13,4 @@ export const PROJECT_SHUTDOWN_ENABLED = parseShutdownFlag(
 );
 
 export const PROJECT_SHUTDOWN_MESSAGE =
-  "This project has currently been shutdown, the Waze API we use internally has now been blocked. The project is available on Github as open-source, and if you are interested in aquiring the domain name teslanav.com (average of 20k MAU), please email me at ryan@teslanav.com if interested.";
+  "Radar is temporarily offline. Please check back soon.";

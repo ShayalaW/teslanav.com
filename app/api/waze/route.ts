@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(wazeUrl.toString(), {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; TeslaNav/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; Radar/1.0)",
         "Accept": "application/json",
       },
       next: { revalidate: 60 },
