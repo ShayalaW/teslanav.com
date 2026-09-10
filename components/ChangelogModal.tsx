@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import posthog from "posthog-js";
 
 // Increment this version whenever you want to show the changelog again
-const CHANGELOG_VERSION = "1";
+const CHANGELOG_VERSION = "2";
 
 interface ChangelogModalProps {
   isDarkMode: boolean;
@@ -138,39 +138,39 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
 
             {/* Version Header */}
             <div>
-              <h3 className="text-2xl font-semibold mb-1">Version 0.2.0</h3>
+              <h3 className="text-2xl font-semibold mb-1">Radar</h3>
               <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                November 2024
+                September 2026
               </p>
             </div>
 
             {/* Changelog Items */}
             <div className="space-y-8">
               <div>
-                <h4 className="text-xl font-medium mb-3">Real-time User Presence</h4>
+                <h4 className="text-xl font-medium mb-3">TeslaNav is now Radar</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  You can now see other Radar users on the map in real-time. Look for the &quot;online&quot; badge in the top right corner showing how many users are currently active.
+                  New name, new look. A clean black interface with a single red accent, designed to feel at home in your Tesla.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Police Alert Improvements</h4>
+                <h4 className="text-xl font-medium mb-3">Report Cops &amp; Hazards</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  Police alerts now only trigger when a police report is ahead of you based on your direction of travel. This reduces unnecessary alerts when you&apos;ve already passed a reported location.
+                  Tap the red Report button and drop a hidden cop, visible cop, hazard, crash, or closure at your location. Every report shows up on the map for every driver instantly.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Navigation Enhancements</h4>
+                <h4 className="text-xl font-medium mb-3">Reports Stay Honest</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  Search for a destination and preview it on the map before starting navigation. You can also long-press anywhere on the map to select that location as a destination.
+                  Reports expire on their own. When you drive past one, answer &quot;Still there?&quot; to keep it alive - enough &quot;Gone&quot; votes and it disappears for everyone.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Auto-Rerouting</h4>
+                <h4 className="text-xl font-medium mb-3">Why It Matters</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  When navigating, Radar now automatically recalculates your route if you deviate from the planned path. No need to manually re-enter your destination.
+                  The Waze data feed is currently blocked, so driver reports are the heartbeat of Radar. More drivers reporting means better coverage for everyone.
                 </p>
               </div>
             </div>
@@ -188,7 +188,7 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
             onClick={handleClose}
             className={`
               w-full h-16 rounded-xl font-medium text-xl
-              bg-blue-500 text-white hover:bg-blue-600
+              bg-[#e82127] text-white hover:bg-[#c11117]
               transition-all active:scale-[0.99]
             `}
           >

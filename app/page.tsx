@@ -1368,7 +1368,7 @@ function LiveHome() {
             `}
           >
             <Image
-              src={effectiveDarkMode ? "/maps-avatar.jpg" : "/maps-avatar-light.jpg"}
+              src={effectiveDarkMode ? "/radar-avatar.png" : "/radar-avatar-light.png"}
               alt="Your location"
               width={36}
               height={36}

@@ -179,7 +179,7 @@ const jsonLd = {
       url: siteUrl,
       logo: {
         "@type": "ImageObject",
-        url: `${siteUrl}/TeslaNavFavicon.png`,
+        url: `${siteUrl}/radar-icon.png`,
       },
     },
     {
