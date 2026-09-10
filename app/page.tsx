@@ -9,9 +9,12 @@ import { NavigateSearch } from "@/components/NavigateSearch";
 import { RouteSelector } from "@/components/RouteSelector";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useWazeAlerts } from "@/hooks/useWazeAlerts";
+import { useReports } from "@/hooks/useReports";
 import { useSpeedCameras } from "@/hooks/useSpeedCameras";
 import { PROJECT_SHUTDOWN_ENABLED, PROJECT_SHUTDOWN_MESSAGE } from "@/lib/shutdown";
-import type { MapBounds } from "@/types/waze";
+import type { MapBounds, WazeAlert } from "@/types/waze";
+import { REPORT_TYPES, REPORT_TYPE_META } from "@/types/report";
+import type { ReportType, UserReport } from "@/types/report";
 import type { RouteData, RoutesResponse } from "@/types/route";
 import Image from "next/image";
 import posthog from "posthog-js";
@@ -65,8 +68,8 @@ function LiveHome() {
       if (savedTheme !== null) {
         return savedTheme === "dark";
       }
-      // Fall back to system preference if no saved theme
-      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+      // Tesla-style dark UI by default if no saved theme
+      return true;
     }
     return false;
   });
@@ -113,6 +116,12 @@ function LiveHome() {
     return true;
   });
   const mapRef = useRef<MapRef>(null);
+
+  // Community reporting
+  const [showReportPicker, setShowReportPicker] = useState(false);
+  const [reportToast, setReportToast] = useState<string | null>(null);
+  const [stillThere, setStillThere] = useState<UserReport | null>(null);
+  const stillTherePromptedRef = useRef<Set<string>>(new Set());
 
   const [destination, setDestination] = useState<{ lng: number; lat: number; name: string } | null>(null);
   const [routes, setRoutes] = useState<RouteData[]>([]);
@@ -170,7 +179,29 @@ function LiveHome() {
   const effectiveHeading = isSimulating && simulatedPosition ? simulatedPosition.heading : realEffectiveHeading;
   // Simulated speed: ~25 m/s highway driving for testing, otherwise use real speed
   const speed = isSimulating ? 25 : realSpeed;
-  const { alerts, loading: alertsLoading, cachedTileBounds } = useWazeAlerts({ bounds });
+  const { alerts: wazeAlerts, loading: alertsLoading, cachedTileBounds } = useWazeAlerts({ bounds });
+  const { reports, submitReport, vote: voteReport, hasVoted } = useReports({ bounds });
+
+  // Community reports ride the same pipeline as Waze alerts (markers, clustering, proximity alerts)
+  const reportAlerts: WazeAlert[] = reports.map((r) => ({
+    uuid: `radar-${r.id}`,
+    type:
+      r.type === "police_hidden" || r.type === "police_visible"
+        ? "POLICE"
+        : r.type === "hazard"
+          ? "HAZARD"
+          : r.type === "accident"
+            ? "ACCIDENT"
+            : "ROAD_CLOSED",
+    subtype: r.type === "police_hidden" ? "POLICE_HIDDEN" : r.type === "police_visible" ? "POLICE_VISIBLE" : undefined,
+    location: { x: r.lng, y: r.lat },
+    reportDescription: "Driver report",
+    reliability: Math.max(1, Math.min(10, 5 + r.confirms - r.dismisses)),
+    nThumbsUp: r.confirms,
+    pubMillis: r.createdAt,
+    provider: "radar",
+  }));
+  const alerts = [...wazeAlerts, ...reportAlerts];
   const { cameras } = useSpeedCameras({ bounds, enabled: showSpeedCameras });
 
   // Track last route origin to detect significant movement
@@ -456,6 +487,51 @@ function LiveHome() {
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
+
+  // Submit a community report at the driver's current location
+  const handleSubmitReport = useCallback(
+    async (type: ReportType) => {
+      if (!latitude || !longitude) return;
+      setShowReportPicker(false);
+      const label = REPORT_TYPE_META[type].label;
+      const report = await submitReport(type, latitude, longitude);
+      setReportToast(report ? `${label} reported` : "Report failed - try again");
+      setTimeout(() => setReportToast(null), 2500);
+      if (report) {
+        posthog.capture("report_submitted", { report_type: type });
+      }
+    },
+    [latitude, longitude, submitReport]
+  );
+
+  // "Still there?" prompt when driving past a community report
+  useEffect(() => {
+    if (!latitude || !longitude || stillThere) return;
+    const now = Date.now();
+    for (const r of reports) {
+      if (now - r.createdAt < 60000) continue; // skip fresh reports (likely your own)
+      if (stillTherePromptedRef.current.has(r.id)) continue;
+      if (hasVoted(r.id)) continue;
+      const distance = getDistanceInMeters(latitude, longitude, r.lat, r.lng);
+      if (distance <= 250) {
+        stillTherePromptedRef.current.add(r.id);
+        setStillThere(r);
+        // Auto-dismiss the prompt after 20 seconds without an answer
+        setTimeout(() => setStillThere((cur) => (cur?.id === r.id ? null : cur)), 20000);
+        break;
+      }
+    }
+  }, [latitude, longitude, reports, stillThere, getDistanceInMeters, hasVoted]);
+
+  const handleStillThereVote = useCallback(
+    (voteKind: "confirm" | "dismiss") => {
+      if (!stillThere) return;
+      voteReport(stillThere.id, voteKind);
+      posthog.capture("report_voted", { report_type: stillThere.type, vote: voteKind });
+      setStillThere(null);
+    },
+    [stillThere, voteReport]
+  );
 
   // Initialize audio element on mount
   // Note: Other settings are loaded via lazy useState initialization above
@@ -888,7 +964,7 @@ function LiveHome() {
 
   // Compass colors based on theme
   const compassCircleColor = effectiveDarkMode ? "#6b7280" : "#9ca3af";
-  const compassNeedleColor = followMode ? "#3b82f6" : (effectiveDarkMode ? "#d1d5db" : "#374151");
+  const compassNeedleColor = followMode ? "#e82127" : (effectiveDarkMode ? "#d1d5db" : "#374151");
   const compassCenterFill = effectiveDarkMode ? "#1a1a1a" : "white";
   const compassCenterStroke = effectiveDarkMode ? "#9ca3af" : "#374151";
 
@@ -897,26 +973,19 @@ function LiveHome() {
     return (
       <main className="relative w-full h-full bg-[#0a0a0a] flex items-center justify-center">
         <div className="flex flex-col items-center gap-6">
-          {/* TeslaNav Logo/Title */}
-          <div className="flex items-center gap-3">
-            <Image
-              src="/maps-avatar.jpg"
-              alt="TeslaNav"
-              width={48}
-              height={48}
-              className="rounded-lg"
-            />
-            <div className="flex flex-col">
-              <span className="text-2xl font-bold text-white tracking-wide">TeslaNav</span>
-              <span className="text-xs text-gray-500">v0.3.0</span>
-            </div>
+          {/* Radar wordmark */}
+          <div className="flex flex-col items-center gap-3">
+            <span className="text-5xl font-semibold text-white tracking-[0.35em] pl-[0.35em]">RADAR</span>
+            <span className="text-[11px] uppercase tracking-[0.25em] pl-[0.25em] text-[#e82127]">
+              Driver alerts for Tesla
+            </span>
           </div>
           
           {/* Loading indicator */}
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
-              <div className="w-12 h-12 border-4 border-white/10 border-t-blue-500 rounded-full animate-spin" />
-              <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-blue-400/30 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
+              <div className="w-12 h-12 border-4 border-white/10 border-t-[#e82127] rounded-full animate-spin" />
+              <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-[#e82127]/30 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
             </div>
             <span className="text-gray-400 text-sm font-medium">
               {geoError ? geoError : "Finding your location..."}
@@ -1014,7 +1083,7 @@ function LiveHome() {
                     transition-colors text-left
                   `}
                 >
-                  <NavigateToIcon className={`w-5 h-5 ${effectiveDarkMode ? "text-blue-400" : "text-blue-500"}`} />
+                  <NavigateToIcon className={`w-5 h-5 text-[#e82127]`} />
                   <span className="font-medium">Select location</span>
                 </button>
                 <button
@@ -1085,7 +1154,7 @@ function LiveHome() {
           >
             {/* Location info */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-inherit">
-              <LocationSearchIcon className={`w-5 h-5 flex-shrink-0 ${effectiveDarkMode ? "text-blue-400" : "text-blue-500"}`} />
+              <LocationSearchIcon className={`w-5 h-5 flex-shrink-0 text-[#e82127]`} />
               <div className="flex-1 min-w-0">
                 <div className={`text-xs uppercase tracking-wider ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                   Search Result
@@ -1123,8 +1192,8 @@ function LiveHome() {
                 disabled={routes.length === 0}
                 className={`
                   flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-                  bg-blue-500 text-white font-medium
-                  transition-all hover:bg-blue-600 active:scale-[0.98]
+                  bg-[#e82127] text-white font-medium
+                  transition-all hover:bg-[#c11117] active:scale-[0.98]
                   disabled:opacity-50 disabled:cursor-not-allowed
                 `}
               >
@@ -1158,7 +1227,7 @@ function LiveHome() {
             {route && (
               <div className="flex items-center gap-4 px-4 py-3 border-b border-inherit">
                 <div className="flex items-center gap-2">
-                  <ClockIcon className={`w-5 h-5 ${effectiveDarkMode ? "text-blue-400" : "text-blue-500"}`} />
+                  <ClockIcon className={`w-5 h-5 text-[#e82127]`} />
                   <span className="text-lg font-semibold">
                     {formatDuration(route.duration)}
                   </span>
@@ -1179,7 +1248,7 @@ function LiveHome() {
             
             {/* Destination info */}
             <div className="flex items-center gap-3 px-4 py-3">
-              <NavigateToIcon className={`w-5 h-5 flex-shrink-0 ${effectiveDarkMode ? "text-blue-400" : "text-blue-500"}`} />
+              <NavigateToIcon className={`w-5 h-5 flex-shrink-0 text-[#e82127]`} />
               <div className="flex-1 min-w-0">
                 <div className={`text-xs uppercase tracking-wider ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                   Navigating to
@@ -1231,7 +1300,7 @@ function LiveHome() {
             </svg>
             {/* Active indicator */}
             {followMode && (
-              <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-blue-500 rounded-full border-2 border-white" />
+              <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#e82127] rounded-full border-2 border-white" />
             )}
           </div>
         </button>
@@ -1306,7 +1375,7 @@ function LiveHome() {
             />
             <div className="flex flex-col">
               <span className="text-sm font-bold tracking-wide">
-                TeslaNav
+                Radar
               </span>
               <span className={`text-[10px] ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                 v0.3.0
@@ -1359,7 +1428,7 @@ function LiveHome() {
           className={`
             w-16 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center
             ${useSatellite 
-              ? "bg-blue-500/80 text-white border-blue-400/30" 
+              ? "bg-[#e82127]/80 text-white border-[#e82127]/40" 
               : getButtonStyles(effectiveDarkMode)
             }
             shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
@@ -1372,6 +1441,49 @@ function LiveHome() {
 
       {/* Bottom Right - Control Buttons */}
       <div className="absolute bottom-6 right-4 z-30 flex gap-3">
+        {/* Report Button + Type Picker */}
+        <div className="relative">
+          {showReportPicker && (
+            <div className="absolute bottom-full right-0 mb-3 flex flex-col items-end gap-2">
+              {REPORT_TYPES.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => handleSubmitReport(t)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
+                >
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      backgroundColor:
+                        t === "police_hidden" || t === "police_visible"
+                          ? "#3b82f6"
+                          : t === "hazard"
+                            ? "#f59e0b"
+                            : t === "accident"
+                              ? "#e82127"
+                              : "#9ca3af",
+                    }}
+                  />
+                  {REPORT_TYPE_META[t].label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => setShowReportPicker((v) => !v)}
+            className={`
+              px-5 h-16 rounded-xl flex items-center justify-center gap-2
+              ${showReportPicker
+                ? "bg-white text-black border-white/40"
+                : "bg-[#e82127] text-white border-[#e82127]/40"}
+              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
+            `}
+            aria-label="Report police, hazard, or accident"
+          >
+            <PlusIcon className="w-5 h-5" />
+            <span className="text-base font-semibold">Report</span>
+          </button>
+        </div>
         {/* Dev Mode - Police Alert Test Button */}
         {isDevMode && (
           <button
@@ -1385,7 +1497,7 @@ function LiveHome() {
               // Auto-hide after 5 seconds
               setTimeout(() => setPoliceAlertToast(null), 5000);
             }}
-            className="px-4 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center gap-2 bg-blue-500/80 text-white border-blue-400/30 shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95"
+            className="px-4 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center gap-2 bg-[#e82127]/80 text-white border-[#e82127]/40 shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95"
             aria-label="Test police alert"
           >
             <PoliceAlertIcon className="w-5 h-5" />
@@ -1434,7 +1546,7 @@ function LiveHome() {
             onClick={handleRecenter}
             className={`
               px-6 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center gap-2
-              bg-blue-500/80 text-white border-blue-400/30
+              bg-[#e82127]/80 text-white border-[#e82127]/40
               shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
             `}
             aria-label="Recenter on location"
@@ -1530,6 +1642,34 @@ function LiveHome() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Report confirmation toast */}
+      {reportToast && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-5 py-3 rounded-xl bg-black/80 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium">
+          {reportToast}
+        </div>
+      )}
+
+      {/* "Still there?" confirmation prompt for nearby community reports */}
+      {stillThere && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-5 py-3 rounded-2xl bg-black/85 text-white border border-white/15 backdrop-blur-xl shadow-2xl">
+          <span className="text-sm font-medium whitespace-nowrap">
+            {REPORT_TYPE_META[stillThere.type].label} ahead - still there?
+          </span>
+          <button
+            onClick={() => handleStillThereVote("confirm")}
+            className="px-4 py-2 rounded-lg bg-[#e82127] text-white text-sm font-semibold transition-all hover:bg-[#c11117] active:scale-95"
+          >
+            Yes
+          </button>
+          <button
+            onClick={() => handleStillThereVote("dismiss")}
+            className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm font-semibold transition-all hover:bg-white/20 active:scale-95"
+          >
+            Gone
+          </button>
         </div>
       )}
 
@@ -1655,7 +1795,7 @@ function LiveHome() {
             <div className="relative w-full aspect-[16/9] overflow-hidden">
               <Image
                 src="/upload.png"
-                alt="TeslaNav Preview"
+                alt="Radar Preview"
                 fill
                 className="object-cover"
                 priority
@@ -1669,7 +1809,7 @@ function LiveHome() {
                 Best on Desktop or Tesla
               </h2>
               <p className="text-gray-400 text-sm leading-relaxed">
-                TeslaNav is designed for the Tesla in-car browser or desktop screens. The experience may be limited on mobile devices.
+                Radar is designed for the Tesla in-car browser or desktop screens. The experience may be limited on mobile devices.
               </p>
             </div>
 
@@ -1679,7 +1819,7 @@ function LiveHome() {
                 <TeslaIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-white text-sm font-medium">Tesla Browser</p>
-                  <p className="text-gray-400 text-xs">Open teslanav.com in your Tesla&apos;s browser for the best experience</p>
+                  <p className="text-gray-400 text-xs">Open teslanav-com-eta.vercel.app in your Tesla&apos;s browser for the best experience</p>
                 </div>
               </div>
               
@@ -1720,9 +1860,9 @@ function ShutdownHome() {
     <main className="flex min-h-screen w-full items-center justify-center bg-neutral-950 px-6 py-12 text-white">
       <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-white/[0.03] p-8 shadow-2xl">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-red-400">
-          TeslaNav Shutdown Notice
+          Radar Shutdown Notice
         </p>
-        <h1 className="mt-3 text-3xl font-bold sm:text-4xl">TeslaNav has been shutdown</h1>
+        <h1 className="mt-3 text-3xl font-bold sm:text-4xl">Radar has been shutdown</h1>
         <p className="mt-6 text-base leading-7 text-neutral-200">{PROJECT_SHUTDOWN_MESSAGE}</p>
         <div className="mt-8 flex flex-wrap gap-3">
           <a

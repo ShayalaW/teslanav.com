@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a1a1a; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">New TeslaNav Feedback</h2>
+        <h2 style="color: #1a1a1a; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">New Radar Feedback</h2>
         
         <div style="background: #f8fafc; border-radius: 8px; padding: 16px; margin: 16px 0;">
           <p style="margin: 0 0 8px 0; color: #64748b; font-size: 12px; text-transform: uppercase;">Feedback Message</p>
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     `;
 
     const textContent = `
-New TeslaNav Feedback
+New Radar Feedback
 =====================
 
 Feedback Message:
@@ -125,9 +125,9 @@ IP: ${ip}
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "TeslaNav Feedback <feedback@teslanav.com>",
+        from: "Radar Feedback <feedback@teslanav.com>",
         to: ["ryan@mandarin3d.com"],
-        subject: `TeslaNav Feedback${email ? ` from ${email}` : ""}`,
+        subject: `Radar Feedback${email ? ` from ${email}` : ""}`,
         html: htmlContent,
         text: textContent,
       }),

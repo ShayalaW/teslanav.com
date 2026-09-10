@@ -105,7 +105,7 @@ export function FeedbackModal({ isOpen, onClose, isDarkMode }: FeedbackModalProp
               <div>
                 <h2 className="text-2xl font-semibold">Send Feedback</h2>
                 <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  Help us improve TeslaNav
+                  Help us improve Radar
                 </p>
               </div>
             </div>
@@ -225,7 +225,7 @@ export function FeedbackModal({ isOpen, onClose, isDarkMode }: FeedbackModalProp
                     </p>
                   </div>
                   <p className={`text-base ${isDarkMode ? "text-emerald-200/80" : "text-emerald-600"}`}>
-                    Donate to help support TeslaNav and your feature request or bug fix will be prioritized!
+                    Donate to help support Radar and your feature request or bug fix will be prioritized!
                   </p>
                 </div>
               </div>

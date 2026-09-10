@@ -6,7 +6,7 @@
 import type { TrackPoint, GPXData, RecordingSession } from "@/types/gpx";
 
 const GPX_VERSION = "1.1";
-const GPX_CREATOR = "TeslaNav";
+const GPX_CREATOR = "Radar";
 const GPX_NAMESPACE = "http://www.topografix.com/GPX/1/1";
 const TESLANAV_NAMESPACE = "http://teslanav.com/gpx/extensions";
 

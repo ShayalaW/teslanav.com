@@ -10,15 +10,15 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const siteUrl = "https://teslanav.com";
-const siteName = "TeslaNav";
-const siteDescription = "Get Waze-style alerts on your Tesla! TeslaNav brings real-time police alerts, speed camera warnings, accident reports, and road hazard notifications to your Tesla's browser. The best Waze alternative for Tesla owners.";
+const siteUrl = "https://teslanav-com-eta.vercel.app";
+const siteName = "Radar";
+const siteDescription = "Radar brings real-time, crowd-sourced police alerts, speed camera warnings, accident reports, and road hazard notifications to your Tesla's browser. Built by drivers, for drivers.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "TeslaNav - Waze Alerts for Tesla | Police, Speed Cameras & Traffic",
-    template: "%s | TeslaNav",
+    default: "Radar - Cop, Hazard & Speed Camera Alerts for Tesla",
+    template: "%s | Radar",
   },
   description: siteDescription,
   keywords: [
@@ -48,10 +48,10 @@ export const metadata: Metadata = {
     "Tesla radar detector alternative",
     "crowd-sourced Tesla alerts",
     // Brand variations
-    "TeslaNav",
-    "Tesla Nav",
+    "Radar",
+    "Radar Tesla app",
     "Tesla navigation app",
-    "Waze Tesla browser",
+    "crowd-sourced cop alerts Tesla",
   ],
   authors: [{ name: siteName }],
   creator: siteName,
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "TeslaNav",
+    title: "Radar",
   },
   formatDetection: {
     telephone: false,
@@ -71,24 +71,23 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: siteUrl,
     siteName: siteName,
-    title: "TeslaNav - Waze Alerts for Tesla | Police, Speed Cameras & Traffic",
+    title: "Radar - Cop, Hazard & Speed Camera Alerts for Tesla",
     description: siteDescription,
     images: [
       {
         url: "/opengraph-image.png",
         width: 1200,
         height: 630,
-        alt: "TeslaNav - Waze-style alerts for your Tesla",
+        alt: "Radar - crowd-sourced driving alerts for your Tesla",
       },
     ],
   },
   // Twitter Card
   twitter: {
     card: "summary_large_image",
-    title: "TeslaNav - Waze Alerts for Tesla",
-    description: "Get real-time police alerts, speed cameras, and road hazards on your Tesla's browser. The best Waze alternative for Tesla owners!",
+    title: "Radar - Cop, Hazard & Speed Camera Alerts for Tesla",
+    description: "Real-time crowd-sourced police alerts, speed cameras, and road hazards on your Tesla's browser.",
     images: ["/twitter-image.png"],
-    creator: "@teslanav",
   },
   // Robots
   robots: {
@@ -118,8 +117,8 @@ export const metadata: Metadata = {
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
-    "application-name": "TeslaNav",
-    "apple-mobile-web-app-title": "TeslaNav",
+    "application-name": "Radar",
+    "apple-mobile-web-app-title": "Radar",
     "msapplication-TileColor": "#000000",
     "msapplication-config": "/browserconfig.xml",
   },
@@ -144,7 +143,7 @@ const jsonLd = {
     {
       "@type": "WebApplication",
       "@id": `${siteUrl}/#webapp`,
-      name: "TeslaNav",
+      name: "Radar",
       url: siteUrl,
       description: siteDescription,
       applicationCategory: "NavigationApplication",
@@ -176,7 +175,7 @@ const jsonLd = {
     {
       "@type": "Organization",
       "@id": `${siteUrl}/#organization`,
-      name: "TeslaNav",
+      name: "Radar",
       url: siteUrl,
       logo: {
         "@type": "ImageObject",
@@ -187,7 +186,7 @@ const jsonLd = {
       "@type": "WebSite",
       "@id": `${siteUrl}/#website`,
       url: siteUrl,
-      name: "TeslaNav",
+      name: "Radar",
       description: siteDescription,
       publisher: {
         "@id": `${siteUrl}/#organization`,
@@ -202,7 +201,7 @@ const jsonLd = {
           name: "Can I use Waze on my Tesla?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Tesla doesn't officially support Waze, but TeslaNav brings Waze-style alerts directly to your Tesla's browser. You get real-time police alerts, speed cameras, accidents, and road hazards - all the features you love from Waze, optimized for Tesla.",
+            text: "Tesla doesn't officially support Waze, but Radar brings crowd-sourced alerts directly to your Tesla's browser. You get real-time police alerts, speed cameras, accidents, and road hazards reported by other drivers, optimized for Tesla.",
           },
         },
         {
@@ -210,7 +209,7 @@ const jsonLd = {
           name: "How do I get police alerts on my Tesla?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Simply open teslanav.com in your Tesla's browser. TeslaNav shows real-time, crowd-sourced police alerts on your map, with customizable audio and visual notifications when you're approaching a reported location.",
+            text: "Simply open Radar in your Tesla's browser. Radar shows real-time, crowd-sourced police alerts on your map, with customizable audio and visual notifications when you're approaching a reported location.",
           },
         },
         {
@@ -218,7 +217,7 @@ const jsonLd = {
           name: "Is TeslaNav free to use?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Yes! TeslaNav is completely free to use. Just open teslanav.com in your Tesla's browser and start navigating with real-time alerts.",
+            text: "Yes! Radar is completely free to use. Just open it in your Tesla's browser and start driving with real-time alerts.",
           },
         },
         {
@@ -226,7 +225,7 @@ const jsonLd = {
           name: "Does TeslaNav work with all Tesla models?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "TeslaNav works with any Tesla that has the in-car browser, including Model 3, Model Y, Model S, and Model X. It's also available on desktop browsers for trip planning.",
+            text: "Radar works with any Tesla that has the in-car browser, including Model 3, Model Y, Model S, and Model X. It's also available on desktop browsers for trip planning.",
           },
         },
       ],

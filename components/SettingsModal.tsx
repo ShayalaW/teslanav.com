@@ -147,7 +147,7 @@ export function SettingsModal({
                 <div>
                   <div className="text-lg font-semibold">Help Sponsor This Project</div>
                   <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                    TeslaNav will always be free and ad-free. Your support helps keep it that way!
+                    Radar will always be free and ad-free. Your support helps keep it that way!
                   </div>
                 </div>
                 {/* QR Code */}
@@ -492,7 +492,7 @@ export function SettingsModal({
                 p-5 rounded-xl
                 ${isDarkMode ? "bg-white/5" : "bg-black/5"}
               `}>
-                <div className="text-lg font-medium">TeslaNav</div>
+                <div className="text-lg font-medium">Radar</div>
                 <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                   Navigation with Waze alerts for Tesla
                 </div>

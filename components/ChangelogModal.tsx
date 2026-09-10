@@ -127,9 +127,9 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
               <div className="flex items-center gap-5">
                 <span className="text-4xl">❤️</span>
                 <div className="flex-1">
-                  <div className="text-xl font-semibold mb-1">Help Keep TeslaNav Free</div>
+                  <div className="text-xl font-semibold mb-1">Help Keep Radar Free</div>
                   <p className={`text-lg ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                    TeslaNav will always be free and ad-free. Your support helps cover server costs and keeps development going!
+                    Radar will always be free and ad-free. Your support helps cover server costs and keeps development going!
                   </p>
                 </div>
                 <ExternalLinkIcon className={`w-6 h-6 flex-shrink-0 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
@@ -149,7 +149,7 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
               <div>
                 <h4 className="text-xl font-medium mb-3">Real-time User Presence</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  You can now see other TeslaNav users on the map in real-time. Look for the &quot;online&quot; badge in the top right corner showing how many users are currently active.
+                  You can now see other Radar users on the map in real-time. Look for the &quot;online&quot; badge in the top right corner showing how many users are currently active.
                 </p>
               </div>
 
@@ -170,7 +170,7 @@ export function ChangelogModal({ isDarkMode }: ChangelogModalProps) {
               <div>
                 <h4 className="text-xl font-medium mb-3">Auto-Rerouting</h4>
                 <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                  When navigating, TeslaNav now automatically recalculates your route if you deviate from the planned path. No need to manually re-enter your destination.
+                  When navigating, Radar now automatically recalculates your route if you deviate from the planned path. No need to manually re-enter your destination.
                 </p>
               </div>
             </div>

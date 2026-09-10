@@ -1,7 +1,7 @@
 {
-  "name": "Tesla Nav",
-  "short_name": "TeslaNav",
-  "description": "Navigation with Waze alerts for Tesla",
+  "name": "Radar",
+  "short_name": "Radar",
+  "description": "Crowd-sourced cop, hazard, and speed camera alerts for Tesla",
   "start_url": "/",
   "display": "fullscreen",
   "orientation": "landscape",
@@ -15,4 +15,3 @@
     }
   ]
 }
-

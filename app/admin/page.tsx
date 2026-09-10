@@ -204,7 +204,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-white">Admin Access</h1>
-                <p className="text-sm text-gray-500">TeslaNav Dashboard</p>
+                <p className="text-sm text-gray-500">Radar Dashboard</p>
               </div>
             </div>
 
@@ -251,7 +251,7 @@ export default function AdminPage() {
               T
             </div>
             <div>
-              <h1 className="font-semibold">TeslaNav Admin</h1>
+              <h1 className="font-semibold">Radar Admin</h1>
               <p className="text-sm text-gray-500">API Usage Dashboard</p>
             </div>
           </div>
