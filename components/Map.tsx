@@ -307,12 +307,8 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
   const CAMERA_FOLLOW_SPEED = 0.12; // How fast camera follows (increased for snappier tracking)
   
   // Speed-based zoom config
-  const lastSpeedRef = useRef<number | null>(null);
   const speedZoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const SPEED_ZOOM_DEBOUNCE = 2000; // ms - wait before adjusting zoom after speed change
-  const SPEED_THRESHOLD_LOW = 8; // m/s (~29 km/h, ~18 mph) - residential driving
-  const SPEED_THRESHOLD_HIGH = 22; // m/s (~79 km/h, ~49 mph) - highway driving
-  const ZOOM_ADJUSTMENT_AMOUNT = 0.8; // How much to adjust zoom by
 
   // Update follow mode ref when prop changes
   useEffect(() => {
@@ -475,87 +471,17 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     };
   }, [animatePosition]);
 
-  // Speed-based dynamic zoom adjustment
-  // When driving faster, zoom out for more context; when slower, zoom in for detail
-  useEffect(() => {
-    if (!map.current || !mapLoaded || !isAutoCentering.current) return;
-    
-    const currentSpeed = userLocation?.speed;
-    if (currentSpeed === null || currentSpeed === undefined) return;
-    
-    const lastSpeed = lastSpeedRef.current;
-    
-    // Initialize last speed on first reading
-    if (lastSpeed === null) {
-      lastSpeedRef.current = currentSpeed;
-      return;
-    }
-    
-    // Determine if we crossed a speed threshold
-    const wasSlowDriving = lastSpeed < SPEED_THRESHOLD_LOW;
-    const isSlowDriving = currentSpeed < SPEED_THRESHOLD_LOW;
-    const wasFastDriving = lastSpeed >= SPEED_THRESHOLD_HIGH;
-    const isFastDriving = currentSpeed >= SPEED_THRESHOLD_HIGH;
-    
-    // Check for threshold crossings
-    let shouldZoomOut = false;
-    let shouldZoomIn = false;
-    
-    // Transition from slow to medium/fast -> zoom out
-    if (wasSlowDriving && !isSlowDriving) {
-      shouldZoomOut = true;
-    }
-    // Transition from medium to fast -> zoom out more
-    else if (!wasFastDriving && isFastDriving) {
-      shouldZoomOut = true;
-    }
-    // Transition from fast to medium/slow -> zoom in
-    else if (wasFastDriving && !isFastDriving) {
-      shouldZoomIn = true;
-    }
-    // Transition from medium to slow -> zoom in more
-    else if (!wasSlowDriving && isSlowDriving) {
-      shouldZoomIn = true;
-    }
-    
-    // Update last speed
-    lastSpeedRef.current = currentSpeed;
-    
-    // Only adjust if threshold was crossed
-    if (!shouldZoomOut && !shouldZoomIn) return;
-    
-    // Clear any pending zoom adjustment
-    if (speedZoomTimeoutRef.current) {
-      clearTimeout(speedZoomTimeoutRef.current);
-    }
-    
-    // Debounce the zoom adjustment to prevent rapid changes
-    speedZoomTimeoutRef.current = setTimeout(() => {
-      if (!map.current || !isAutoCentering.current || userInteractingRef.current || isZoomingRef.current) return;
-      
-      const currentZoom = map.current.getZoom();
-      const targetZoom = shouldZoomOut 
-        ? Math.max(currentZoom - ZOOM_ADJUSTMENT_AMOUNT, 11) // Min zoom ~11 for highway context
-        : Math.min(currentZoom + ZOOM_ADJUSTMENT_AMOUNT, 17); // Max zoom ~17 for residential detail
-      
-      map.current.easeTo({
-        zoom: targetZoom,
-        duration: 1000,
-      });
-    }, SPEED_ZOOM_DEBOUNCE);
-    
-    return () => {
-      if (speedZoomTimeoutRef.current) {
-        clearTimeout(speedZoomTimeoutRef.current);
-      }
-    };
-  }, [userLocation?.speed, mapLoaded]);
-
-  // Auto-zoom with speed (Tesla-style): tighter when slow, wider when fast
+  // Auto-zoom with speed (Tesla-style): tighter when slow, wider when fast.
+  // Debounced, respects user interaction, and only runs while following you.
   useEffect(() => {
     if (!autoZoom || !followMode || !map.current || !mapLoaded) return;
     if (routes.length > 0) return; // route view owns the zoom
-    const mph = (userLocation?.speed ?? 0) * 2.23694;
+    if (!isAutoCentering.current) return;
+
+    const currentSpeed = userLocation?.speed;
+    if (currentSpeed === null || currentSpeed === undefined) return;
+
+    const mph = currentSpeed * 2.23694;
     const band = mph < 10 ? 16.5 : mph < 35 ? 15.5 : mph < 55 ? 14.5 : 13.5;
     // Never zoom on the first speed fix - wait until we have a baseline
     if (autoZoomBandRef.current === null) {
@@ -563,8 +489,22 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
       return;
     }
     if (autoZoomBandRef.current === band) return;
-    autoZoomBandRef.current = band;
-    map.current.easeTo({ zoom: band, duration: 1200 });
+
+    // Debounce so rapid speed fluctuations don't bounce the camera
+    if (speedZoomTimeoutRef.current) {
+      clearTimeout(speedZoomTimeoutRef.current);
+    }
+    speedZoomTimeoutRef.current = setTimeout(() => {
+      if (!map.current || !isAutoCentering.current || userInteractingRef.current || isZoomingRef.current) return;
+      autoZoomBandRef.current = band;
+      map.current.easeTo({ zoom: band, duration: 1200 });
+    }, 800);
+
+    return () => {
+      if (speedZoomTimeoutRef.current) {
+        clearTimeout(speedZoomTimeoutRef.current);
+      }
+    };
   }, [userLocation?.speed, followMode, autoZoom, mapLoaded, routes.length]);
 
   // Update night overlay opacity based on time of day (satellite mode only)
