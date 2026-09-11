@@ -250,6 +250,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
   ref
 ) {
   const mapContainer = useRef<HTMLDivElement>(null);
+  const [webglError, setWebglError] = useState(false);
   const map = useRef<mapboxgl.Map | null>(null);
   // Use Maps for incremental marker updates (key = unique ID)
   const markersRef = useRef<globalThis.Map<string, mapboxgl.Marker>>(new globalThis.Map());
@@ -574,7 +575,8 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         : "mapbox://styles/mapbox/light-v11";
     }
 
-    map.current = new mapboxgl.Map({
+    try {
+      map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: initialStyle,
       center,
@@ -598,6 +600,12 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         return { url };
       },
     });
+    } catch (err) {
+      // WebGL unavailable (graphics acceleration off, blocklisted GPU, remote session)
+      console.error("[Radar] Map failed to start - WebGL unavailable:", err);
+      setWebglError(true);
+      return;
+    }
 
     map.current.on("load", () => {
       setMapLoaded(true);
@@ -2169,6 +2177,23 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
       mapInstance.off("style.load", handleStyleLoad);
     };
   }, [route, routes, selectedRouteIndex, mapLoaded, isDarkMode]);
+
+  if (webglError) {
+    return (
+      <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0a0a0a] p-8">
+        <div className="flex max-w-md flex-col items-center gap-4 text-center">
+          <span className="text-5xl font-semibold tracking-[0.35em] pl-[0.35em] text-white">RADAR</span>
+          <h2 className="text-xl font-semibold text-white">The map can&apos;t start</h2>
+          <p className="text-base text-gray-400 leading-relaxed">
+            Radar&apos;s map needs WebGL graphics acceleration, which is currently off or
+            unavailable in this browser. In Chrome: Settings &rarr; System &rarr; turn on
+            &quot;Use graphics acceleration when available&quot;, then relaunch the browser
+            and reload this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
