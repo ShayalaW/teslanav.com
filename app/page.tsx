@@ -1746,7 +1746,7 @@ function LiveHome() {
 
       {/* Speed Badge + Speed Limit - top left, plain blur (no styled tab) */}
       {speed != null && (
-        <div className="absolute top-4 left-4 z-30 flex flex-col items-center gap-2">
+        <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
           <div
             className="flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
             aria-label="Current speed"
