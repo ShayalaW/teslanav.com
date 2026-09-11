@@ -2,6 +2,10 @@ export type ReportType =
   | "police_hidden"
   | "police_visible"
   | "police_other_side"
+  | "vehicle_stopped"
+  | "traffic_slow"
+  | "traffic_standstill"
+  | "traffic_heavy"
   | "hazard"
   | "hazard_pothole"
   | "hazard_object"
@@ -26,6 +30,10 @@ export const REPORT_TYPES: ReportType[] = [
   "police_hidden",
   "police_visible",
   "police_other_side",
+  "vehicle_stopped",
+  "traffic_slow",
+  "traffic_standstill",
+  "traffic_heavy",
   "hazard",
   "hazard_pothole",
   "hazard_object",
@@ -39,6 +47,10 @@ export const REPORT_TYPE_META: Record<ReportType, { label: string; shortLabel: s
   police_hidden: { label: "Hidden cop", shortLabel: "Hidden" },
   police_visible: { label: "Cop (pulled over / visible)", shortLabel: "Cop" },
   police_other_side: { label: "Cop (other side)", shortLabel: "Other side" },
+  vehicle_stopped: { label: "Car stopped on shoulder", shortLabel: "Car stopped" },
+  traffic_slow: { label: "Slow traffic", shortLabel: "Slow" },
+  traffic_standstill: { label: "Standstill traffic", shortLabel: "Standstill" },
+  traffic_heavy: { label: "Heavy traffic", shortLabel: "Heavy" },
   hazard: { label: "Hazard", shortLabel: "Hazard" },
   hazard_pothole: { label: "Pothole", shortLabel: "Pothole" },
   hazard_object: { label: "Object on road", shortLabel: "Object" },
@@ -75,13 +87,24 @@ export const REPORT_PICKER: ReportPickerCategory[] = [
     ],
   },
   {
+    key: "traffic",
+    label: "Traffic",
+    emoji: "🚗",
+    children: [
+      { type: "traffic_slow", label: "Slow", emoji: "🐌" },
+      { type: "traffic_heavy", label: "Heavy", emoji: "🚗" },
+      { type: "traffic_standstill", label: "Standstill", emoji: "🛑" },
+    ],
+  },
+  { key: "construction", label: "Construction", emoji: "🚧", type: "hazard_construction" },
+  { key: "vehicle_stopped", label: "Car on shoulder", emoji: "🚘", type: "vehicle_stopped" },
+  {
     key: "hazard",
     label: "Hazard",
     emoji: "⚠️",
     children: [
       { type: "hazard_pothole", label: "Pothole", emoji: "🕳️" },
       { type: "hazard_object", label: "Object on road", emoji: "📦" },
-      { type: "hazard_construction", label: "Construction", emoji: "🚧" },
       { type: "hazard_weather", label: "Weather", emoji: "🌧️" },
     ],
   },

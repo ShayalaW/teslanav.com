@@ -8,7 +8,8 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   isDarkMode: boolean;
-  onToggleDarkMode: () => void;
+  themeMode: "light" | "dark" | "auto";
+  onSetThemeMode: (mode: "light" | "dark" | "auto") => void;
   onOpenChangelog: () => void;
   showWazeAlerts: boolean;
   onToggleWazeAlerts: (value: boolean) => void;
@@ -34,7 +35,8 @@ export function SettingsModal({
   isOpen,
   onClose,
   isDarkMode,
-  onToggleDarkMode,
+  themeMode,
+  onSetThemeMode,
   onOpenChangelog,
   showWazeAlerts,
   onToggleWazeAlerts,
@@ -138,28 +140,35 @@ export function SettingsModal({
                 <h3 className={`text-base font-medium uppercase tracking-wider mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                   Appearance
                 </h3>
-                <div className="space-y-4">
-                  <div className={`
-                    flex items-center justify-between p-5 rounded-xl
-                    ${isDarkMode ? "bg-white/5" : "bg-black/5"}
-                  `}>
-                    <div className="flex items-center gap-4">
-                      <span className="text-3xl">{isDarkMode ? "🌙" : "☀️"}</span>
-                      <div>
-                        <div className="text-lg font-medium">Dark Mode</div>
-                        <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                          Easier on the eyes at night
-                        </div>
+                <div className={`p-5 rounded-xl ${isDarkMode ? "bg-white/5" : "bg-black/5"}`}>
+                  <div className="flex items-center gap-4 mb-4">
+                    <span className="text-3xl">{themeMode === "auto" ? "🌗" : isDarkMode ? "🌙" : "☀️"}</span>
+                    <div>
+                      <div className="text-lg font-medium">Theme</div>
+                      <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                        Auto follows sunrise and sunset at your location
                       </div>
                     </div>
-                    <Toggle
-                      enabled={isDarkMode}
-                      onToggle={() => {
-                        onToggleDarkMode();
-                        posthog.capture("dark_mode_toggled", { dark_mode: !isDarkMode });
-                      }}
-                      isDarkMode={isDarkMode}
-                    />
+                  </div>
+                  <div className={`flex rounded-xl overflow-hidden border ${isDarkMode ? "border-white/15" : "border-black/10"}`}>
+                    {(["light", "dark", "auto"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => {
+                          onSetThemeMode(mode);
+                          posthog.capture("theme_mode_changed", { theme_mode: mode });
+                        }}
+                        className={`flex-1 py-3 text-base font-medium transition-colors ${
+                          themeMode === mode
+                            ? "bg-[#e82127] text-white"
+                            : isDarkMode
+                              ? "text-gray-300 hover:bg-white/10"
+                              : "text-gray-700 hover:bg-black/5"
+                        }`}
+                      >
+                        {mode === "auto" ? "Auto" : mode === "light" ? "Light" : "Dark"}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -353,9 +362,9 @@ export function SettingsModal({
                   <div className="flex items-center gap-4">
                     <span className="text-3xl">🔊</span>
                     <div>
-                      <div className="text-lg font-medium">Sound Alert</div>
+                      <div className="text-lg font-medium">Alert Sounds</div>
                       <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                        Play audio when police are nearby
+                        Play audio when police, hazards, crashes, or traffic are ahead
                       </div>
                     </div>
                   </div>
@@ -477,27 +486,6 @@ export function SettingsModal({
                   <a href="https://teslanav.com" target="_blank" rel="noopener noreferrer" className="underline">
                     open-source TeslaNav project
                   </a>.
-                </div>
-              </div>
-            </div>
-
-            {/* Known Issues Section */}
-            <div>
-              <h3 className={`text-base font-medium uppercase tracking-wider mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                Known Issues
-              </h3>
-              <div className={`
-                p-5 rounded-xl
-                ${isDarkMode ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-200"}
-              `}>
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">🔧</span>
-                  <div>
-                    <div className="text-lg font-medium">Search & Navigation</div>
-                    <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                      We are aware that the search and navigation functionality is currently not working as expected. We&apos;re actively working on a fix. Thank you for your patience!
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

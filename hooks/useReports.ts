@@ -16,6 +16,28 @@ function markVoted(id: string, vote: "confirm" | "dismiss"): void {
   localStorage.setItem(VOTED_STORAGE_PREFIX + id, vote);
 }
 
+const OWN_REPORTS_KEY = "radar-my-reports";
+
+function getOwnIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(OWN_REPORTS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function markOwn(id: string): void {
+  if (typeof window === "undefined") return;
+  const ids = getOwnIds();
+  ids.push(id);
+  localStorage.setItem(OWN_REPORTS_KEY, JSON.stringify(ids.slice(-50)));
+}
+
+function isOwn(id: string): boolean {
+  return getOwnIds().includes(id);
+}
+
 interface UseReportsOptions {
   bounds: MapBounds | null;
   refreshInterval?: number;
@@ -81,6 +103,7 @@ export function useReports({
         const data = await response.json();
         const report = data.report as UserReport;
         setReports((prev) => [...prev.filter((r) => r.id !== report.id), report]);
+        markOwn(report.id);
         return report;
       } catch (err) {
         console.error("Failed to submit report:", err);
@@ -118,5 +141,5 @@ export function useReports({
     []
   );
 
-  return { reports, submitting, submitReport, vote, hasVoted };
+  return { reports, submitting, submitReport, vote, hasVoted, isOwn };
 }

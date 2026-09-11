@@ -58,20 +58,60 @@ export default function Home() {
   return <LiveHome />;
 }
 
+type ThemeMode = "light" | "dark" | "auto";
+
+// Approximate sunrise/sunset from coordinates - no API needed
+function isDaytime(lat: number, lng: number): boolean {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = (now.getTime() - start.getTime()) / 86400000;
+  const rad = Math.PI / 180;
+  const declination = -23.44 * Math.cos(rad * (360 / 365) * (dayOfYear + 10));
+  const cosHourAngle = -Math.tan(rad * lat) * Math.tan(rad * declination);
+  if (cosHourAngle <= -1) return true; // midnight sun
+  if (cosHourAngle >= 1) return false; // polar night
+  const hourAngle = Math.acos(cosHourAngle) / rad;
+  const solarNoonUtc = 12 - lng / 15;
+  const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60;
+  return utcHours > solarNoonUtc - hourAngle / 15 && utcHours < solarNoonUtc + hourAngle / 15;
+}
+
+const APPROACH_ALERT_DISTANCE_M = 500; // alert when within 500m of a report
+const APPROACH_ALERT_META: Record<string, { emoji: string; label: string }> = {
+  HAZARD: { emoji: "⚠️", label: "Hazard ahead" },
+  ACCIDENT: { emoji: "💥", label: "Crash ahead" },
+  ROAD_CLOSED: { emoji: "⛔", label: "Road closed ahead" },
+  JAM: { emoji: "🚗", label: "Traffic ahead" },
+};
+
+function formatApproachDistance(meters: number): string {
+  const miles = meters / 1609.34;
+  if (miles < 0.1) return "right ahead";
+  return `${miles.toFixed(1)} mi ahead`;
+}
+
 function LiveHome() {
   // Use lazy initialization to read from localStorage immediately
   // This ensures the map initializes with the correct theme before first render
-  const [isDarkMode, setIsDarkMode] = useState(() => {
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
     if (typeof window !== "undefined") {
       const savedTheme = localStorage.getItem("teslanav-theme");
-      if (savedTheme !== null) {
-        return savedTheme === "dark";
+      if (savedTheme === "light" || savedTheme === "dark" || savedTheme === "auto") {
+        return savedTheme;
       }
       // Tesla-style dark UI by default if no saved theme
-      return true;
+      return "dark";
     }
-    return false;
+    return "dark";
   });
+  const [autoDark, setAutoDark] = useState(true);
+  const setThemeMode = useCallback((mode: ThemeMode) => {
+    setThemeModeState(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("teslanav-theme", mode);
+    }
+  }, []);
+  const isDarkMode = themeMode === "auto" ? autoDark : themeMode === "dark";
   const [bounds, setBounds] = useState<MapBounds | null>(null);
   const [followMode, setFollowMode] = useState(() => {
     if (typeof window !== "undefined") {
@@ -110,7 +150,14 @@ function LiveHome() {
     }
     return false;
   });
-  const [showAvatarPulse, setShowAvatarPulse] = useState(true);
+  const [showAvatarPulse, setShowAvatarPulse] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("teslanav-avatar-pulse");
+      return saved !== null ? saved === "true" : false; // off by default
+    }
+    return false;
+  });
+  const [styleMenuOpen, setStyleMenuOpen] = useState(false);
   const mapRef = useRef<MapRef>(null);
 
   // Community reporting
@@ -146,12 +193,14 @@ function LiveHome() {
   const [policeAlertSound, setPoliceAlertSound] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("teslanav-police-sound");
-      return saved === "true";
+      return saved === null ? true : saved === "true";
     }
-    return false; // off by default
+    return true; // on by default
   });
   const [policeAlertToast, setPoliceAlertToast] = useState<{ show: boolean; expanding: boolean } | null>(null);
   const alertedPoliceIdsRef = useRef<Set<string>>(new Set());
+  const [approachAlert, setApproachAlert] = useState<{ id: string; emoji: string; label: string; lat: number; lng: number } | null>(null);
+  const alertedReportIdsRef = useRef<Set<string>>(new Set());
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastAlertTimeRef = useRef<number>(0);
   const ALERT_COOLDOWN_MS = 5000; // 5 seconds between alerts
@@ -173,10 +222,23 @@ function LiveHome() {
   const latitude = isSimulating && simulatedPosition ? simulatedPosition.lat : realLatitude;
   const longitude = isSimulating && simulatedPosition ? simulatedPosition.lng : realLongitude;
   const effectiveHeading = isSimulating && simulatedPosition ? simulatedPosition.heading : realEffectiveHeading;
+
+  // Auto theme: follow sunrise/sunset at the driver's location
+  useEffect(() => {
+    if (themeMode !== "auto") return;
+    const update = () => {
+      if (latitude != null && longitude != null) {
+        setAutoDark(!isDaytime(latitude, longitude));
+      }
+    };
+    update();
+    const interval = setInterval(update, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [themeMode, latitude, longitude]);
   // Simulated speed: ~25 m/s highway driving for testing, otherwise use real speed
   const speed = isSimulating ? 25 : realSpeed;
   const { alerts: wazeAlerts, loading: alertsLoading, cachedTileBounds } = useWazeAlerts({ bounds });
-  const { reports, submitReport, vote: voteReport, hasVoted } = useReports({ bounds });
+  const { reports, submitReport, vote: voteReport, hasVoted, isOwn } = useReports({ bounds });
 
   // Community reports ride the same pipeline as Waze alerts (markers, clustering, proximity alerts)
   const reportAlerts: WazeAlert[] = reports.map((r) => ({
@@ -184,11 +246,13 @@ function LiveHome() {
     type:
       r.type.startsWith("police")
         ? "POLICE"
-        : r.type.startsWith("hazard")
-          ? "HAZARD"
-          : r.type === "accident"
-            ? "ACCIDENT"
-            : "ROAD_CLOSED",
+        : r.type.startsWith("traffic")
+          ? "JAM"
+          : r.type.startsWith("hazard") || r.type === "vehicle_stopped"
+            ? "HAZARD"
+            : r.type === "accident"
+              ? "ACCIDENT"
+              : "ROAD_CLOSED",
     subtype:
       r.type === "police_hidden"
         ? "POLICE_HIDDEN"
@@ -198,7 +262,11 @@ function LiveHome() {
             ? "OTHER_SIDE"
             : r.type.startsWith("hazard_")
               ? r.type.replace("hazard_", "").toUpperCase()
-              : undefined,
+              : r.type.startsWith("traffic_")
+                ? r.type.replace("traffic_", "").toUpperCase()
+                : r.type === "vehicle_stopped"
+                  ? "VEHICLE_STOPPED"
+                  : undefined,
     location: { x: r.lng, y: r.lat },
     reportDescription: "Driver report",
     reliability: Math.max(1, Math.min(10, 5 + r.confirms - r.dismisses)),
@@ -520,7 +588,8 @@ function LiveHome() {
     if (!latitude || !longitude || stillThere) return;
     const now = Date.now();
     for (const r of reports) {
-      if (now - r.createdAt < 60000) continue; // skip fresh reports (likely your own)
+      if (isOwn(r.id)) continue; // never prompt on your own reports
+      if (now - r.createdAt < 5 * 60 * 1000) continue; // let reports age 5 minutes before prompting
       if (stillTherePromptedRef.current.has(r.id)) continue;
       if (hasVoted(r.id)) continue;
       const distance = getDistanceInMeters(latitude, longitude, r.lat, r.lng);
@@ -532,7 +601,7 @@ function LiveHome() {
         break;
       }
     }
-  }, [latitude, longitude, reports, stillThere, getDistanceInMeters, hasVoted]);
+  }, [latitude, longitude, reports, stillThere, getDistanceInMeters, hasVoted, isOwn]);
 
   const handleStillThereVote = useCallback(
     (voteKind: "confirm" | "dismiss") => {
@@ -851,6 +920,73 @@ function LiveHome() {
     }
   }, [latitude, longitude, alerts, policeAlertDistance, policeAlertSound, showWazeAlerts, getDistanceInMeters, effectiveHeading, isAlertAhead]);
 
+  // Approach alerts for everything that is not police: hazards, crashes, closures, traffic
+  useEffect(() => {
+    if (!latitude || !longitude || !showWazeAlerts) return;
+    const candidates = alerts.filter((a) =>
+      ["ACCIDENT", "HAZARD", "ROAD_CLOSED", "JAM"].includes(a.type)
+    );
+    if (candidates.length === 0) return;
+
+    const now = Date.now();
+    // Warmup: silently mark nearby reports as seen right after page load
+    if (now - pageLoadTimeRef.current < WARMUP_PERIOD_MS) {
+      for (const a of candidates) {
+        if (getDistanceInMeters(latitude, longitude, a.location.y, a.location.x) <= APPROACH_ALERT_DISTANCE_M) {
+          alertedReportIdsRef.current.add(a.uuid);
+        }
+      }
+      return;
+    }
+    if (now - lastAlertTimeRef.current < ALERT_COOLDOWN_MS) return;
+
+    for (const a of candidates) {
+      if (alertedReportIdsRef.current.has(a.uuid)) continue;
+      const distance = getDistanceInMeters(latitude, longitude, a.location.y, a.location.x);
+      if (distance > APPROACH_ALERT_DISTANCE_M) continue;
+      if (!isAlertAhead(a.location.y, a.location.x, effectiveHeading)) {
+        alertedReportIdsRef.current.add(a.uuid);
+        continue;
+      }
+      alertedReportIdsRef.current.add(a.uuid);
+      lastAlertTimeRef.current = now;
+
+      const meta = APPROACH_ALERT_META[a.type] ?? { emoji: "⚠️", label: "Hazard ahead" };
+      const subtype = a.subtype ? ` - ${a.subtype.toLowerCase().replace(/_/g, " ")}` : "";
+      setApproachAlert({
+        id: a.uuid,
+        emoji: meta.emoji,
+        label: meta.label + subtype,
+        lat: a.location.y,
+        lng: a.location.x,
+      });
+
+      if (policeAlertSound && alertAudioRef.current) {
+        alertAudioRef.current.currentTime = 0;
+        alertAudioRef.current.play().catch((err) => console.log("Audio play failed:", err));
+      }
+
+      posthog.capture("approach_alert_triggered", {
+        alert_type: a.type,
+        alert_subtype: a.subtype,
+        distance_meters: Math.round(distance),
+        sound_enabled: policeAlertSound,
+      });
+
+      // Auto-hide after 6 seconds
+      setTimeout(() => setApproachAlert((cur) => (cur?.id === a.uuid ? null : cur)), 6000);
+      break;
+    }
+  }, [latitude, longitude, alerts, showWazeAlerts, policeAlertSound, getDistanceInMeters, effectiveHeading, isAlertAhead]);
+
+  // Dismiss the approach banner once we pass the report
+  useEffect(() => {
+    if (!approachAlert || !latitude || !longitude) return;
+    if (getDistanceInMeters(latitude, longitude, approachAlert.lat, approachAlert.lng) < 40) {
+      setApproachAlert(null);
+    }
+  }, [latitude, longitude, approachAlert, getDistanceInMeters]);
+
   // Listen for system dark mode preference changes
   // Only update if user hasn't explicitly set a preference
   useEffect(() => {
@@ -860,13 +996,41 @@ function LiveHome() {
         // Only apply system preference if user hasn't explicitly set one
         const savedTheme = localStorage.getItem("teslanav-theme");
         if (savedTheme === null) {
-          setIsDarkMode(e.matches);
+          setThemeModeState(e.matches ? "dark" : "light");
         }
       };
       mediaQuery.addEventListener("change", handler);
       return () => mediaQuery.removeEventListener("change", handler);
     }
   }, []);
+
+  // Browsers block audio until the first user gesture - unlock on first tap
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const unlock = () => {
+      const a = alertAudioRef.current;
+      if (a) {
+        a.muted = true;
+        a.play()
+          .then(() => {
+            a.pause();
+            a.currentTime = 0;
+            a.muted = false;
+          })
+          .catch(() => {
+            a.muted = false;
+          });
+      }
+      window.removeEventListener("pointerdown", unlock);
+    };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
+
+  // Close the style menu when the secondary controls auto-hide
+  useEffect(() => {
+    if (!controlsVisible) setStyleMenuOpen(false);
+  }, [controlsVisible]);
 
   const handleBoundsChange = useCallback((newBounds: MapBounds) => {
     setBounds(newBounds);
@@ -877,22 +1041,12 @@ function LiveHome() {
     setIsCentered(centered);
   }, []);
 
-  const toggleDarkMode = useCallback(() => {
-    setIsDarkMode((prev) => {
-      const newValue = !prev;
-
-      // Persist to localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem("teslanav-theme", newValue ? "dark" : "light");
-      }
-
-      // Track dark mode toggle
-      posthog.capture("dark_mode_toggled", {
-        dark_mode_enabled: newValue,
-      });
-
-      return newValue;
-    });
+  // Save avatar pulse preference to localStorage
+  const handleToggleAvatarPulse = useCallback((value: boolean) => {
+    setShowAvatarPulse(value);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("teslanav-avatar-pulse", value.toString());
+    }
   }, []);
 
   // Show secondary map controls briefly, then auto-hide (Tesla-style)
@@ -957,7 +1111,7 @@ function LiveHome() {
   // Filter alerts to show only key types (if enabled)
   const filteredAlerts = showWazeAlerts
     ? alerts.filter((alert) =>
-        ["POLICE", "ACCIDENT", "HAZARD", "ROAD_CLOSED"].includes(alert.type)
+        ["POLICE", "ACCIDENT", "HAZARD", "ROAD_CLOSED", "JAM"].includes(alert.type)
       )
     : [];
 
@@ -966,6 +1120,7 @@ function LiveHome() {
     police: filteredAlerts.filter((a) => a.type === "POLICE").length,
     accidents: filteredAlerts.filter((a) => a.type === "ACCIDENT").length,
     hazards: filteredAlerts.filter((a) => a.type === "HAZARD").length,
+    traffic: filteredAlerts.filter((a) => a.type === "JAM").length,
     closures: filteredAlerts.filter((a) => a.type === "ROAD_CLOSED").length,
   };
 
@@ -1312,6 +1467,12 @@ function LiveHome() {
                 <span className="font-semibold">{alertCounts.hazards}</span>
               </span>
             )}
+            {alertCounts.traffic > 0 && (
+              <span className="flex items-center gap-1.5 text-base">
+                <span className="text-lg leading-none">🚗</span>
+                <span className="font-semibold">{alertCounts.traffic}</span>
+              </span>
+            )}
             {alertCounts.closures > 0 && (
               <span className="flex items-center gap-1.5 text-base">
                 <NoSymbolIcon className="w-5 h-5 text-gray-500" />
@@ -1327,20 +1488,56 @@ function LiveHome() {
             controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
           }`}
         >
-          <button
-            onClick={() => {
-              handleToggleSatellite(!useSatellite);
-              posthog.capture("satellite_quick_toggled", { satellite_enabled: !useSatellite });
-            }}
-            className={`
-              w-12 h-12 rounded-xl backdrop-blur-xl flex items-center justify-center
-              ${useSatellite ? "bg-[#e82127]/80 text-white border-[#e82127]/40" : getButtonStyles(effectiveDarkMode)}
-              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
-            `}
-            aria-label={useSatellite ? "Switch to standard map" : "Switch to satellite view"}
-          >
-            <span className="text-xl leading-none">🛰️</span>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => {
+                setStyleMenuOpen((v) => !v);
+                posthog.capture("map_style_menu_toggled", { open: !styleMenuOpen });
+              }}
+              className={`
+                w-12 h-12 rounded-xl backdrop-blur-xl flex items-center justify-center
+                ${useSatellite ? "bg-[#e82127]/80 text-white border-[#e82127]/40" : getButtonStyles(effectiveDarkMode)}
+                shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
+              `}
+              aria-label="Change map style"
+            >
+              <span className="text-xl leading-none">🛰️</span>
+            </button>
+            {styleMenuOpen && (
+              <div className={`absolute right-14 top-0 w-44 rounded-xl backdrop-blur-xl border shadow-2xl overflow-hidden ${effectiveDarkMode ? "bg-[#1a1a1a]/95 border-white/15 text-white" : "bg-white/95 border-black/10 text-black"}`}>
+                {([
+                  { key: "light", label: "Light", emoji: "☀️", active: !useSatellite && !use3DMode && !isDarkMode },
+                  { key: "dark", label: "Dark", emoji: "🌙", active: !useSatellite && !use3DMode && isDarkMode },
+                  { key: "satellite", label: "Satellite", emoji: "🛰️", active: useSatellite },
+                  { key: "3d", label: "3D", emoji: "🏙️", active: !useSatellite && use3DMode },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => {
+                      if (opt.key === "satellite") {
+                        handleToggleSatellite(true);
+                        if (use3DMode) handleToggle3DMode(false);
+                      } else if (opt.key === "3d") {
+                        if (useSatellite) handleToggleSatellite(false);
+                        handleToggle3DMode(true);
+                      } else {
+                        if (useSatellite) handleToggleSatellite(false);
+                        if (use3DMode) handleToggle3DMode(false);
+                        setThemeMode(opt.key);
+                      }
+                      setStyleMenuOpen(false);
+                      posthog.capture("map_style_selected", { style: opt.key });
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-base font-medium transition-colors ${effectiveDarkMode ? "hover:bg-white/10" : "hover:bg-black/5"} ${opt.active ? "text-[#e82127]" : ""}`}
+                  >
+                    <span className="text-xl leading-none">{opt.emoji}</span>
+                    <span className="flex-1 text-left">{opt.label}</span>
+                    {opt.active && <span>✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => {
               handleToggleTraffic(!showTraffic);
@@ -1595,6 +1792,25 @@ function LiveHome() {
         </div>
       )}
 
+      {/* Approach alert banner for hazards, crashes, closures, and traffic */}
+      {approachAlert && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <div className="approach-alert-banner bg-black/90 backdrop-blur-md text-white px-8 py-4 rounded-2xl shadow-2xl border border-white/20">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">{approachAlert.emoji}</span>
+              <div className="flex flex-col">
+                <span className="text-xl font-bold tracking-wide whitespace-nowrap">{approachAlert.label}</span>
+                {latitude && longitude && (
+                  <span className="text-sm text-gray-300">
+                    {formatApproachDistance(getDistanceInMeters(latitude, longitude, approachAlert.lat, approachAlert.lng))}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Report confirmation toast */}
       {reportToast && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-5 py-3 rounded-xl bg-black/80 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium">
@@ -1628,7 +1844,8 @@ function LiveHome() {
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
         isDarkMode={effectiveDarkMode}
-        onToggleDarkMode={toggleDarkMode}
+        themeMode={themeMode}
+        onSetThemeMode={setThemeMode}
         onOpenChangelog={() => {
           setShowSettings(false);
           setChangelogOpen(true);
@@ -1642,7 +1859,7 @@ function LiveHome() {
         useSatellite={useSatellite}
         onToggleSatellite={handleToggleSatellite}
         showAvatarPulse={showAvatarPulse}
-        onToggleAvatarPulse={setShowAvatarPulse}
+        onToggleAvatarPulse={handleToggleAvatarPulse}
         policeAlertDistance={policeAlertDistance}
         onPoliceAlertDistanceChange={handlePoliceAlertDistanceChange}
         policeAlertSound={policeAlertSound}
@@ -1657,6 +1874,19 @@ function LiveHome() {
 
       {/* Global styles for police alert animations */}
       <style jsx global>{`
+        @keyframes approach-flash {
+          0% { opacity: 0; transform: translateY(-16px); }
+          20% { opacity: 1; transform: translateY(0); }
+          45% { opacity: 1; }
+          55% { opacity: 0.5; }
+          65% { opacity: 1; }
+          80% { opacity: 0.6; }
+          90% { opacity: 1; }
+          100% { opacity: 1; }
+        }
+        .approach-alert-banner {
+          animation: approach-flash 1.2s ease-out;
+        }
         .police-alert-container {
           animation: container-fade 3s ease-out forwards;
         }
