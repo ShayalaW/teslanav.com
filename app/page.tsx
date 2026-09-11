@@ -10,6 +10,7 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { useWazeAlerts } from "@/hooks/useWazeAlerts";
 import { useReports } from "@/hooks/useReports";
 import { useSpeedCameras } from "@/hooks/useSpeedCameras";
+import { useSpeedLimit } from "@/hooks/useSpeedLimit";
 import { PROJECT_SHUTDOWN_ENABLED, PROJECT_SHUTDOWN_MESSAGE } from "@/lib/shutdown";
 import type { MapBounds, WazeAlert } from "@/types/waze";
 import { REPORT_TYPES, REPORT_TYPE_META, REPORT_PICKER } from "@/types/report";
@@ -251,6 +252,9 @@ function LiveHome() {
   const [approachAlert, setApproachAlert] = useState<{ id: string; type: string; label: string; lat: number; lng: number } | null>(null);
   const alertedReportIdsRef = useRef<Set<string>>(new Set());
   const alertedCameraIdsRef = useRef<Set<string>>(new Set());
+  const alertedClosureIdsRef = useRef<Set<string>>(new Set());
+  const [roadAhead, setRoadAhead] = useState<{ closures: { lat: number; lng: number }[]; incidents: { lat: number; lng: number; description: string }[] }>({ closures: [], incidents: [] });
+  const roadAheadFetchRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const longPressFiredRef = useRef(false);
   const [reportHolding, setReportHolding] = useState(false);
@@ -290,6 +294,8 @@ function LiveHome() {
   }, [themeMode, latitude, longitude]);
   // Simulated speed: ~25 m/s highway driving for testing, otherwise use real speed
   const speed = isSimulating ? 25 : realSpeed;
+  // Posted speed limit for the road being driven (map matching + tilequery)
+  const speedLimitMph = useSpeedLimit(latitude, longitude);
   const { alerts: wazeAlerts, loading: alertsLoading, cachedTileBounds } = useWazeAlerts({ bounds });
   const { reports, submitReport, vote: voteReport, hasVoted, isOwn, removeReport } = useReports({ bounds });
 
@@ -1157,6 +1163,80 @@ function LiveHome() {
     }
   }, [latitude, longitude, cameras, showSpeedCameras, policeAlertSound, voiceAlerts, getDistanceInMeters, effectiveHeading, isAlertAhead]);
 
+  // Fetch live closures/incidents on the road ahead (Directions driving-traffic)
+  useEffect(() => {
+    if (!latitude || !longitude || effectiveHeading == null) return;
+    const mph = (speed ?? 0) * 2.23694;
+    if (mph < 15) return; // only while actually driving
+
+    const lastFetch = roadAheadFetchRef.current;
+    if (lastFetch) {
+      if (Date.now() - lastFetch.at < 30000) return;
+      if (getDistanceInMeters(latitude, longitude, lastFetch.lat, lastFetch.lng) < 400) return;
+    }
+    roadAheadFetchRef.current = { at: Date.now(), lat: latitude, lng: longitude };
+
+    fetch(`/api/road-ahead?lat=${latitude}&lng=${longitude}&heading=${effectiveHeading}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.closures)) {
+          setRoadAhead({ closures: data.closures, incidents: data.incidents ?? [] });
+        }
+      })
+      .catch(() => {});
+  }, [latitude, longitude, effectiveHeading, speed, getDistanceInMeters]);
+
+  // Approach alerts for live road-ahead closures and incidents
+  useEffect(() => {
+    if (!latitude || !longitude) return;
+    const items = [
+      ...roadAhead.closures.map((c) => ({ ...c, kind: "closure" as const, type: "ROAD_CLOSED", label: "Road closed ahead" })),
+      ...roadAhead.incidents.map((i) => ({ ...i, kind: "incident" as const, type: "HAZARD", label: `${i.description.charAt(0).toUpperCase()}${i.description.slice(1)} ahead` })),
+    ];
+    if (items.length === 0) return;
+
+    const now = Date.now();
+    if (now - pageLoadTimeRef.current < WARMUP_PERIOD_MS) {
+      for (const it of items) {
+        if (getDistanceInMeters(latitude, longitude, it.lat, it.lng) <= 800) {
+          alertedClosureIdsRef.current.add(`${it.kind}-${it.lat.toFixed(3)},${it.lng.toFixed(3)}`);
+        }
+      }
+      return;
+    }
+    if (now - lastAlertTimeRef.current < ALERT_COOLDOWN_MS) return;
+
+    for (const it of items) {
+      const key = `${it.kind}-${it.lat.toFixed(3)},${it.lng.toFixed(3)}`;
+      if (alertedClosureIdsRef.current.has(key)) continue;
+      const distance = getDistanceInMeters(latitude, longitude, it.lat, it.lng);
+      if (distance > 800) continue;
+      if (!isAlertAhead(it.lat, it.lng, effectiveHeading)) {
+        alertedClosureIdsRef.current.add(key);
+        continue;
+      }
+      alertedClosureIdsRef.current.add(key);
+      lastAlertTimeRef.current = now;
+
+      setApproachAlert({ id: key, type: it.type, label: it.label, lat: it.lat, lng: it.lng });
+
+      if (policeAlertSound && alertAudioRef.current) {
+        alertAudioRef.current.currentTime = 0;
+        alertAudioRef.current.play().catch((err) => console.log("Audio play failed:", err));
+      }
+      if (voiceAlerts) {
+        speakAlert(`${it.label} ${milesPhrase(distance)}`);
+      }
+      posthog.capture("road_ahead_alert_triggered", {
+        kind: it.kind,
+        distance_meters: Math.round(distance),
+      });
+
+      setTimeout(() => setApproachAlert((cur) => (cur?.id === key ? null : cur)), 6000);
+      break;
+    }
+  }, [latitude, longitude, roadAhead, policeAlertSound, voiceAlerts, getDistanceInMeters, effectiveHeading, isAlertAhead]);
+
   // Dismiss the approach banner once we pass the report
   useEffect(() => {
     if (!approachAlert || !latitude || !longitude) return;
@@ -1656,10 +1736,11 @@ function LiveHome() {
         )}
       </div>
 
-      {/* Speed Badge - top left, plain blur (no styled tab) */}
+      {/* Speed Badge + Speed Limit - top left, plain blur (no styled tab) */}
       {speed != null && (
+        <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
           <div
-            className="absolute top-4 left-4 z-30 flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
+            className="flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
             aria-label="Current speed"
           >
             <span className="text-2xl font-bold leading-none">{Math.round(speed * 2.23694)}</span>
@@ -1667,6 +1748,20 @@ function LiveHome() {
               mph
             </span>
           </div>
+          {speedLimitMph != null && (
+            <div
+              className={`w-10 h-12 rounded-lg flex flex-col items-center justify-center text-lg font-bold leading-none border-2 transition-colors ${
+                speed * 2.23694 > speedLimitMph + 1
+                  ? "bg-[#e82127] border-[#e82127] text-white animate-pulse"
+                  : "bg-white/90 border-black/60 text-black"
+              }`}
+              aria-label={`Speed limit ${speedLimitMph} mph`}
+            >
+              <span className="text-[7px] font-semibold uppercase tracking-tight opacity-70">Limit</span>
+              {speedLimitMph}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Top Right - Compass + Alert Summary (stacked) */}
