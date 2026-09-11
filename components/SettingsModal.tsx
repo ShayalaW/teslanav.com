@@ -9,6 +9,7 @@ interface SettingsModalProps {
   onClose: () => void;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  onOpenChangelog: () => void;
   showWazeAlerts: boolean;
   onToggleWazeAlerts: (value: boolean) => void;
   showSpeedCameras: boolean;
@@ -34,6 +35,7 @@ export function SettingsModal({
   onClose,
   isDarkMode,
   onToggleDarkMode,
+  onOpenChangelog,
   showWazeAlerts,
   onToggleWazeAlerts,
   showSpeedCameras,
@@ -460,6 +462,12 @@ export function SettingsModal({
                 p-5 rounded-xl
                 ${isDarkMode ? "bg-white/5" : "bg-black/5"}
               `}>
+                <button
+                  onClick={onOpenChangelog}
+                  className={`mb-3 text-base font-medium underline underline-offset-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
+                >
+                  What&apos;s new in v1.0
+                </button>
                 <div className="text-lg font-medium">Radar</div>
                 <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                   Crowd-sourced driver alerts for your Tesla

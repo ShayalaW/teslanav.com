@@ -12,7 +12,7 @@ import { useReports } from "@/hooks/useReports";
 import { useSpeedCameras } from "@/hooks/useSpeedCameras";
 import { PROJECT_SHUTDOWN_ENABLED, PROJECT_SHUTDOWN_MESSAGE } from "@/lib/shutdown";
 import type { MapBounds, WazeAlert } from "@/types/waze";
-import { REPORT_TYPES, REPORT_TYPE_META } from "@/types/report";
+import { REPORT_TYPES, REPORT_TYPE_META, REPORT_PICKER } from "@/types/report";
 import type { ReportType, UserReport } from "@/types/report";
 import type { RouteData, RoutesResponse } from "@/types/route";
 import Image from "next/image";
@@ -76,11 +76,15 @@ function LiveHome() {
   const [followMode, setFollowMode] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("teslanav-follow-mode");
-      return saved === "true";
+      return saved === null ? true : saved === "true"; // heading-up is the default
     }
     return false;
   });
   const [isCentered, setIsCentered] = useState(true);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [pickerLevel, setPickerLevel] = useState<string | null>(null);
+  const reportAnchorRef = useRef<{ lat: number; lng: number } | null>(null);
+  const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [showWazeAlerts, setShowWazeAlerts] = useState(true);
@@ -178,14 +182,23 @@ function LiveHome() {
   const reportAlerts: WazeAlert[] = reports.map((r) => ({
     uuid: `radar-${r.id}`,
     type:
-      r.type === "police_hidden" || r.type === "police_visible"
+      r.type.startsWith("police")
         ? "POLICE"
-        : r.type === "hazard"
+        : r.type.startsWith("hazard")
           ? "HAZARD"
           : r.type === "accident"
             ? "ACCIDENT"
             : "ROAD_CLOSED",
-    subtype: r.type === "police_hidden" ? "POLICE_HIDDEN" : r.type === "police_visible" ? "POLICE_VISIBLE" : undefined,
+    subtype:
+      r.type === "police_hidden"
+        ? "POLICE_HIDDEN"
+        : r.type === "police_visible"
+          ? "POLICE_VISIBLE"
+          : r.type === "police_other_side"
+            ? "OTHER_SIDE"
+            : r.type.startsWith("hazard_")
+              ? r.type.replace("hazard_", "").toUpperCase()
+              : undefined,
     location: { x: r.lng, y: r.lat },
     reportDescription: "Driver report",
     reliability: Math.max(1, Math.min(10, 5 + r.confirms - r.dismisses)),
@@ -480,13 +493,19 @@ function LiveHome() {
     setContextMenu(null);
   }, []);
 
-  // Submit a community report at the driver's current location
+  // Submit a community report at the spot where the driver TAPPED Report
+  // (Waze-style: location anchors at the tap, not at pick time)
   const handleSubmitReport = useCallback(
     async (type: ReportType) => {
-      if (!latitude || !longitude) return;
+      const anchor = reportAnchorRef.current;
+      const lat = anchor?.lat ?? latitude;
+      const lng = anchor?.lng ?? longitude;
+      if (!lat || !lng) return;
+      reportAnchorRef.current = null;
       setShowReportPicker(false);
+      setPickerLevel(null);
       const label = REPORT_TYPE_META[type].label;
-      const report = await submitReport(type, latitude, longitude);
+      const report = await submitReport(type, lat, lng);
       setReportToast(report ? `${label} reported` : "Report failed - try again");
       setTimeout(() => setReportToast(null), 2500);
       if (report) {
@@ -858,20 +877,6 @@ function LiveHome() {
     setIsCentered(centered);
   }, []);
 
-  const handleRecenter = useCallback(() => {
-    if (latitude && longitude && mapRef.current) {
-      mapRef.current.recenter(longitude, latitude);
-      // Map component will call onCenteredChange(true)
-
-      // Track recenter event
-      posthog.capture("map_recentered", {
-        latitude,
-        longitude,
-        follow_mode: followMode,
-      });
-    }
-  }, [latitude, longitude, followMode]);
-
   const toggleDarkMode = useCallback(() => {
     setIsDarkMode((prev) => {
       const newValue = !prev;
@@ -888,6 +893,13 @@ function LiveHome() {
 
       return newValue;
     });
+  }, []);
+
+  // Show secondary map controls briefly, then auto-hide (Tesla-style)
+  const showControlsTemporarily = useCallback(() => {
+    setControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 5000);
   }, []);
 
   const toggleFollowMode = useCallback(() => {
@@ -910,6 +922,23 @@ function LiveHome() {
       return newValue;
     });
   }, []);
+
+  // Tesla-style compass: tap re-centers and re-engages tracking when panned away
+  const handleCompassTap = useCallback(() => {
+    if (!isCentered && latitude && longitude && mapRef.current) {
+      mapRef.current.recenter(longitude, latitude);
+      if (!followMode) {
+        setFollowMode(true);
+        mapRef.current.setFollowMode(true);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("teslanav-follow-mode", "true");
+        }
+      }
+      posthog.capture("map_recentered", { latitude, longitude, follow_mode: true });
+      return;
+    }
+    toggleFollowMode();
+  }, [isCentered, latitude, longitude, followMode, toggleFollowMode]);
 
   const handleZoomIn = useCallback(() => {
     mapRef.current?.zoomIn();
@@ -940,15 +969,12 @@ function LiveHome() {
     closures: filteredAlerts.filter((a) => a.type === "ROAD_CLOSED").length,
   };
 
-  // Show refocus button when not centered (regardless of rotation mode)
-  const showRefocusButton = !isCentered && latitude && longitude;
-
   // Use dark theme for UI when satellite mode is on
   const effectiveDarkMode = isDarkMode || useSatellite;
 
   // Compass colors based on theme
   const compassCircleColor = effectiveDarkMode ? "#6b7280" : "#9ca3af";
-  const compassNeedleColor = followMode ? "#e82127" : (effectiveDarkMode ? "#d1d5db" : "#374151");
+  const compassNeedleColor = !isCentered ? "#9ca3af" : followMode ? "#e82127" : (effectiveDarkMode ? "#d1d5db" : "#374151");
   const compassCenterFill = effectiveDarkMode ? "#1a1a1a" : "white";
   const compassCenterStroke = effectiveDarkMode ? "#9ca3af" : "#374151";
 
@@ -981,7 +1007,7 @@ function LiveHome() {
   }
 
   return (
-    <main className="relative w-full h-full">
+    <main className="relative w-full h-full" onPointerDown={showControlsTemporarily}>
       {/* Map */}
       <Map
         ref={mapRef}
@@ -1228,13 +1254,13 @@ function LiveHome() {
       <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-3">
         {/* Compass/Orientation Toggle */}
         <button
-          onClick={toggleFollowMode}
+          onClick={handleCompassTap}
           className={`
             w-[72px] h-[72px] rounded-xl backdrop-blur-xl flex items-center justify-center
             ${getButtonStyles(effectiveDarkMode)}
             shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
           `}
-          aria-label={followMode ? "Lock north up" : "Follow heading"}
+          aria-label={!isCentered ? "Recenter and follow" : followMode ? "Lock north up" : "Follow heading"}
         >
           <div className="relative w-11 h-11">
             {/* Compass icon */}
@@ -1260,7 +1286,7 @@ function LiveHome() {
         </button>
 
         {/* Alert Summary - Stacked vertically, same width as compass */}
-        {(filteredAlerts.length > 0 || alertsLoading) && (
+        {filteredAlerts.length > 0 && (
           <div
             className={`
               w-[72px] flex flex-col items-center gap-1.5 py-3 rounded-xl backdrop-blur-xl
@@ -1268,15 +1294,6 @@ function LiveHome() {
               shadow-lg border relative
             `}
           >
-            {/* Waze loading indicator - shows when fetching new data */}
-            {alertsLoading && (
-              <div className="absolute -top-2 -right-2 z-10">
-                <div className="relative">
-                  <WazeIcon className="w-6 h-6 text-cyan-400 animate-pulse" />
-                  <div className="absolute inset-0 w-6 h-6 rounded-full bg-cyan-400/30 animate-ping" />
-                </div>
-              </div>
-            )}
             {alertCounts.police > 0 && (
               <span className="flex items-center gap-1.5 text-base">
                 <ShieldExclamationIcon className="w-5 h-5 text-blue-500" />
@@ -1301,46 +1318,114 @@ function LiveHome() {
                 <span className="font-semibold">{alertCounts.closures}</span>
               </span>
             )}
-            {/* Show placeholder when loading with no alerts yet */}
-            {alertsLoading && filteredAlerts.length === 0 && (
-              <span className={`text-xs ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                Loading...
-              </span>
-            )}
           </div>
         )}
-      </div>
 
-      {/* Bottom Left - User Location + Settings */}
-      <div className="absolute bottom-6 left-4 z-30 flex items-center gap-3">
-        {latitude && longitude && (
+        {/* Secondary map controls - auto-hide while driving (Tesla-style) */}
+        <div
+          className={`flex flex-col items-end gap-2 transition-opacity duration-300 ${
+            controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
           <button
-            onClick={() => setChangelogOpen(true)}
-            aria-label="Open what's new"
-            title="What's new"
+            onClick={() => {
+              handleToggleSatellite(!useSatellite);
+              posthog.capture("satellite_quick_toggled", { satellite_enabled: !useSatellite });
+            }}
             className={`
-              flex items-center gap-3 px-4 h-16 rounded-xl backdrop-blur-xl
-              ${getContainerStyles(effectiveDarkMode)}
+              w-12 h-12 rounded-xl backdrop-blur-xl flex items-center justify-center
+              ${useSatellite ? "bg-[#e82127]/80 text-white border-[#e82127]/40" : getButtonStyles(effectiveDarkMode)}
               shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
             `}
+            aria-label={useSatellite ? "Switch to standard map" : "Switch to satellite view"}
           >
-            <Image
-              src={effectiveDarkMode ? "/radar-avatar.png" : "/radar-avatar-light.png"}
-              alt="Your location"
-              width={36}
-              height={36}
-            />
-            <div className="flex flex-col">
-              <span className="text-sm font-bold tracking-wide">
-                Radar
-              </span>
-              <span className={`text-[10px] ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                v1.0
-              </span>
-            </div>
+            <span className="text-xl leading-none">🛰️</span>
           </button>
-        )}
+          <button
+            onClick={() => {
+              handleToggleTraffic(!showTraffic);
+              posthog.capture("traffic_quick_toggled", { traffic_enabled: !showTraffic });
+            }}
+            className={`
+              w-12 h-12 rounded-xl backdrop-blur-xl flex items-center justify-center
+              ${showTraffic ? "bg-[#e82127]/80 text-white border-[#e82127]/40" : getButtonStyles(effectiveDarkMode)}
+              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
+            `}
+            aria-label={showTraffic ? "Hide traffic" : "Show traffic"}
+          >
+            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
+              <rect x="3" y="14" width="4" height="7" rx="1" />
+              <rect x="10" y="9" width="4" height="12" rx="1" />
+              <rect x="17" y="4" width="4" height="17" rx="1" />
+            </svg>
+          </button>
+        </div>
+      </div>
 
+      {/* Bottom Left - Report (driver side) + Settings + Speed */}
+      <div className="absolute bottom-6 left-4 z-30 flex items-end gap-3">
+        {/* Report Button + Type Picker */}
+        <div className="relative">
+          {showReportPicker && (
+            <div className="absolute bottom-full left-0 mb-3 flex flex-col items-start gap-2">
+              {pickerLevel === null ? (
+                REPORT_PICKER.map((cat) => (
+                  <button
+                    key={cat.key}
+                    onClick={() => (cat.children ? setPickerLevel(cat.key) : handleSubmitReport(cat.type!))}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
+                  >
+                    <span className="text-xl leading-none">{cat.emoji}</span>
+                    {cat.label}
+                    {cat.children && <span className="text-white/50">›</span>}
+                  </button>
+                ))
+              ) : (
+                <>
+                  {REPORT_PICKER.find((c) => c.key === pickerLevel)?.children?.map((opt) => (
+                    <button
+                      key={opt.type}
+                      onClick={() => handleSubmitReport(opt.type)}
+                      className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
+                    >
+                      <span className="text-xl leading-none">{opt.emoji}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPickerLevel(null)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black/50 text-white/70 border border-white/10 backdrop-blur-xl text-sm transition-all hover:bg-white/10 active:scale-95"
+                  >
+                    ‹ Back
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() =>
+              setShowReportPicker((v) => {
+                if (!v) {
+                  // Anchor the report location NOW, at tap time
+                  reportAnchorRef.current = latitude && longitude ? { lat: latitude, lng: longitude } : null;
+                  setPickerLevel(null);
+                }
+                return !v;
+              })
+            }
+            className={`
+              px-5 h-20 rounded-xl flex items-center justify-center gap-2
+              ${showReportPicker
+                ? "bg-white text-black border-white/40"
+                : "bg-[#e82127] text-white border-[#e82127]/40"}
+              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
+            `}
+            aria-label="Report police, hazard, or accident"
+          >
+            <PlusIcon className="w-5 h-5" />
+            <span className="text-base font-semibold">Report</span>
+          </button>
+        </div>
         {/* Settings Button */}
         <button
           onClick={() => {
@@ -1358,73 +1443,27 @@ function LiveHome() {
           <SettingsIcon className="w-7 h-7" />
         </button>
 
-        {/* Satellite Toggle Button */}
-        <button
-          onClick={() => {
-            handleToggleSatellite(!useSatellite);
-            posthog.capture("satellite_quick_toggled", {
-              satellite_enabled: !useSatellite,
-            });
-          }}
-          className={`
-            w-16 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center
-            ${useSatellite 
-              ? "bg-[#e82127]/80 text-white border-[#e82127]/40" 
-              : getButtonStyles(effectiveDarkMode)
-            }
-            shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
-          `}
-          aria-label={useSatellite ? "Switch to standard map" : "Switch to satellite view"}
-        >
-          <span className="text-3xl leading-none">🛰️</span>
-        </button>
+        {/* Speed Bubble */}
+        {speed != null && (
+          <div
+            className={`
+              w-16 h-16 rounded-full backdrop-blur-xl flex flex-col items-center justify-center
+              ${getContainerStyles(effectiveDarkMode)}
+              shadow-lg border
+            `}
+            aria-label="Current speed"
+          >
+            <span className="text-xl font-bold leading-none">{Math.round(speed * 2.23694)}</span>
+            <span className={`text-[9px] uppercase tracking-wider ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+              mph
+            </span>
+          </div>
+        )}
+
       </div>
 
       {/* Bottom Right - Control Buttons */}
       <div className="absolute bottom-6 right-4 z-30 flex items-end gap-3">
-        {/* Report Button + Type Picker */}
-        <div className="relative">
-          {showReportPicker && (
-            <div className="absolute bottom-full right-0 mb-3 flex flex-col items-end gap-2">
-              {REPORT_TYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => handleSubmitReport(t)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
-                >
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{
-                      backgroundColor:
-                        t === "police_hidden" || t === "police_visible"
-                          ? "#3b82f6"
-                          : t === "hazard"
-                            ? "#f59e0b"
-                            : t === "accident"
-                              ? "#e82127"
-                              : "#9ca3af",
-                    }}
-                  />
-                  {REPORT_TYPE_META[t].label}
-                </button>
-              ))}
-            </div>
-          )}
-          <button
-            onClick={() => setShowReportPicker((v) => !v)}
-            className={`
-              px-5 h-20 rounded-xl flex items-center justify-center gap-2
-              ${showReportPicker
-                ? "bg-white text-black border-white/40"
-                : "bg-[#e82127] text-white border-[#e82127]/40"}
-              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
-            `}
-            aria-label="Report police, hazard, or accident"
-          >
-            <PlusIcon className="w-5 h-5" />
-            <span className="text-base font-semibold">Report</span>
-          </button>
-        </div>
         {/* Dev Mode - Police Alert Test Button */}
         {isDevMode && (
           <button
@@ -1478,22 +1517,6 @@ function LiveHome() {
                 <span className="text-lg font-medium">Simulate</span>
               </>
             )}
-          </button>
-        )}
-
-        {/* Refocus Button - Only shows when not centered */}
-        {showRefocusButton && (
-          <button
-            onClick={handleRecenter}
-            className={`
-              px-6 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center gap-2
-              bg-[#e82127]/80 text-white border-[#e82127]/40
-              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
-            `}
-            aria-label="Recenter on location"
-          >
-            <CrosshairIcon className="w-6 h-6" />
-            <span className="text-lg font-medium">Recenter</span>
           </button>
         )}
 
@@ -1606,6 +1629,10 @@ function LiveHome() {
         onClose={() => setShowSettings(false)}
         isDarkMode={effectiveDarkMode}
         onToggleDarkMode={toggleDarkMode}
+        onOpenChangelog={() => {
+          setShowSettings(false);
+          setChangelogOpen(true);
+        }}
         showWazeAlerts={showWazeAlerts}
         onToggleWazeAlerts={setShowWazeAlerts}
         showSpeedCameras={showSpeedCameras}

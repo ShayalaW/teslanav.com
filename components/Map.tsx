@@ -2197,16 +2197,16 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         
         .user-avatar-container {
           position: relative;
-          width: 72px;
-          height: 72px;
+          width: 52px;
+          height: 52px;
         }
         
         .user-avatar {
           position: absolute;
           top: 50%;
           left: 50%;
-          width: 48px;
-          height: 48px;
+          width: 34px;
+          height: 34px;
           z-index: 3;
           transition: transform 0.1s ease-out;
         }
@@ -2219,8 +2219,8 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         
         .user-avatar-pulse {
           position: absolute;
-          width: 72px;
-          height: 72px;
+          width: 52px;
+          height: 52px;
           background: rgba(59, 130, 246, 0.25);
           border-radius: 50%;
           top: 50%;

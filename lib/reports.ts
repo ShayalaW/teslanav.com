@@ -13,7 +13,12 @@ const REPORTS_HASH = "radar:reports";
 export const REPORT_TTL_MS: Record<ReportType, number> = {
   police_hidden: 90 * 60 * 1000, // 90 min - cops move on
   police_visible: 60 * 60 * 1000, // 60 min - pulled-over clears fastest
-  hazard: 4 * 60 * 60 * 1000, // 4 hours
+  police_other_side: 60 * 60 * 1000, // 60 min
+  hazard: 4 * 60 * 60 * 1000, // 4 hours (legacy type)
+  hazard_pothole: 24 * 60 * 60 * 1000, // 24 hours - potholes stay put
+  hazard_object: 2 * 60 * 60 * 1000, // 2 hours - debris gets cleared
+  hazard_construction: 7 * 24 * 60 * 60 * 1000, // 7 days - construction lingers
+  hazard_weather: 2 * 60 * 60 * 1000, // 2 hours - weather moves
   accident: 3 * 60 * 60 * 1000, // 3 hours
   road_closed: 12 * 60 * 60 * 1000, // 12 hours
 };
