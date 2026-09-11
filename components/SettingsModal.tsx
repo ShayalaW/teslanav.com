@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SunIcon, MoonIcon, AutoThemeIcon, SatelliteIcon, CameraIcon, SpeakerIcon, PulseIcon, CubeIcon } from "./icons";
 import posthog from "posthog-js";
 import { ShieldExclamationIcon, MapIcon } from "@heroicons/react/24/solid";
 
@@ -142,7 +143,7 @@ export function SettingsModal({
                 </h3>
                 <div className={`p-5 rounded-xl ${isDarkMode ? "bg-white/5" : "bg-black/5"}`}>
                   <div className="flex items-center gap-4 mb-4">
-                    <span className="text-3xl">{themeMode === "auto" ? "🌗" : isDarkMode ? "🌙" : "☀️"}</span>
+                    <span className="text-gray-400">{themeMode === "auto" ? <AutoThemeIcon className="w-7 h-7" /> : isDarkMode ? <MoonIcon className="w-7 h-7" /> : <SunIcon className="w-7 h-7" />}</span>
                     <div>
                       <div className="text-lg font-medium">Theme</div>
                       <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
@@ -187,7 +188,7 @@ export function SettingsModal({
                   ${isDarkMode ? "bg-white/5" : "bg-black/5"}
                 `}>
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">🛰️</span>
+                    <span className="text-gray-400"><SatelliteIcon className="w-7 h-7" /></span>
                     <div>
                       <div className="text-lg font-medium">Satellite View</div>
                       <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
@@ -250,7 +251,7 @@ export function SettingsModal({
                   ${isDarkMode ? "bg-white/5" : "bg-black/5"}
                 `}>
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">📷</span>
+                    <span className="text-gray-400"><CameraIcon className="w-7 h-7" /></span>
                     <div>
                       <div className="text-lg font-medium">Speed Cameras</div>
                       <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
@@ -360,7 +361,7 @@ export function SettingsModal({
                   ${policeAlertDistance === 0 ? "opacity-50 pointer-events-none" : ""}
                 `}>
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">🔊</span>
+                    <span className="text-gray-400"><SpeakerIcon className="w-7 h-7" /></span>
                     <div>
                       <div className="text-lg font-medium">Alert Sounds</div>
                       <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
@@ -395,7 +396,7 @@ export function SettingsModal({
                   ${isDarkMode ? "bg-white/5" : "bg-black/5"}
                 `}>
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">💫</span>
+                    <span className="text-gray-400"><PulseIcon className="w-7 h-7" /></span>
                     <div>
                       <div className="text-lg font-medium">Location Pulse</div>
                       <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
@@ -433,7 +434,7 @@ export function SettingsModal({
                 `}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <span className="text-3xl">🏔️</span>
+                      <span className="text-gray-400"><CubeIcon className="w-7 h-7" /></span>
                       <div>
                         <div className="text-lg font-medium">3D Map View</div>
                         <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>

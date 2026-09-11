@@ -1907,7 +1907,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
       const popupContent = `
         <div class="alert-popup" style="background: ${popupBg}; color: ${popupText};">
           <div class="alert-popup-header" style="color: #ef4444; margin-bottom: 4px;">
-            📷 ${cameraTypeLabel}
+            ${cameraTypeLabel}
           </div>
           ${popupDetails}
           <div class="camera-popup-source" style="color: ${popupSubtext}; font-size: 10px; margin-top: 6px;">

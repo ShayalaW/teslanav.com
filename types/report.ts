@@ -64,13 +64,13 @@ export const REPORT_TYPE_META: Record<ReportType, { label: string; shortLabel: s
 export interface ReportPickerOption {
   type: ReportType;
   label: string;
-  emoji: string;
+  icon: string;
 }
 
 export interface ReportPickerCategory {
   key: string;
   label: string;
-  emoji: string;
+  icon: string;
   type?: ReportType; // set when the category reports directly (no drill-down)
   children?: ReportPickerOption[];
 }
@@ -79,37 +79,37 @@ export const REPORT_PICKER: ReportPickerCategory[] = [
   {
     key: "police",
     label: "Police",
-    emoji: "🚔",
+    icon: "police",
     children: [
-      { type: "police_visible", label: "Pulled over / visible", emoji: "🚔" },
-      { type: "police_hidden", label: "Hidden", emoji: "🕵️" },
-      { type: "police_other_side", label: "Other side of road", emoji: "↔️" },
+      { type: "police_visible", label: "Pulled over / visible", icon: "police" },
+      { type: "police_hidden", label: "Hidden", icon: "eye-off" },
+      { type: "police_other_side", label: "Other side of road", icon: "swap" },
     ],
   },
   {
     key: "traffic",
     label: "Traffic",
-    emoji: "🚗",
+    icon: "traffic-light",
     children: [
-      { type: "traffic_slow", label: "Slow", emoji: "🐌" },
-      { type: "traffic_heavy", label: "Heavy", emoji: "🚗" },
-      { type: "traffic_standstill", label: "Standstill", emoji: "🛑" },
+      { type: "traffic_slow", label: "Slow", icon: "dot-amber" },
+      { type: "traffic_heavy", label: "Heavy", icon: "dot-orange" },
+      { type: "traffic_standstill", label: "Standstill", icon: "dot-red" },
     ],
   },
-  { key: "construction", label: "Construction", emoji: "🚧", type: "hazard_construction" },
-  { key: "vehicle_stopped", label: "Car on shoulder", emoji: "🚘", type: "vehicle_stopped" },
+  { key: "construction", label: "Construction", icon: "cone", type: "hazard_construction" },
+  { key: "vehicle_stopped", label: "Car on shoulder", icon: "car-stop", type: "vehicle_stopped" },
   {
     key: "hazard",
     label: "Hazard",
-    emoji: "⚠️",
+    icon: "hazard",
     children: [
-      { type: "hazard_pothole", label: "Pothole", emoji: "🕳️" },
-      { type: "hazard_object", label: "Object on road", emoji: "📦" },
-      { type: "hazard_weather", label: "Weather", emoji: "🌧️" },
+      { type: "hazard_pothole", label: "Pothole", icon: "pothole" },
+      { type: "hazard_object", label: "Object on road", icon: "box" },
+      { type: "hazard_weather", label: "Weather", icon: "cloud-rain" },
     ],
   },
-  { key: "accident", label: "Crash", emoji: "💥", type: "accident" },
-  { key: "road_closed", label: "Road closed", emoji: "⛔", type: "road_closed" },
+  { key: "accident", label: "Crash", icon: "crash", type: "accident" },
+  { key: "road_closed", label: "Road closed", icon: "closure", type: "road_closed" },
 ];
 
 export interface ReportVoteRequest {

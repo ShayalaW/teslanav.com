@@ -18,6 +18,7 @@ import type { RouteData, RoutesResponse } from "@/types/route";
 import Image from "next/image";
 import posthog from "posthog-js";
 import { ShieldExclamationIcon, ExclamationTriangleIcon, NoSymbolIcon } from "@heroicons/react/24/solid";
+import { ReportIcon, ApproachAlertIcon, TrafficLightIcon, SunIcon, MoonIcon, SatelliteIcon, CubeIcon, LayersIcon } from "@/components/icons";
 
 // Consistent button styles for light/dark mode - more transparent with blur
 const getButtonStyles = (darkMode: boolean) => 
@@ -77,11 +78,11 @@ function isDaytime(lat: number, lng: number): boolean {
 }
 
 const APPROACH_ALERT_DISTANCE_M = 500; // alert when within 500m of a report
-const APPROACH_ALERT_META: Record<string, { emoji: string; label: string }> = {
-  HAZARD: { emoji: "⚠️", label: "Hazard ahead" },
-  ACCIDENT: { emoji: "💥", label: "Crash ahead" },
-  ROAD_CLOSED: { emoji: "⛔", label: "Road closed ahead" },
-  JAM: { emoji: "🚗", label: "Traffic ahead" },
+const APPROACH_ALERT_META: Record<string, { label: string }> = {
+  HAZARD: { label: "Hazard ahead" },
+  ACCIDENT: { label: "Crash ahead" },
+  ROAD_CLOSED: { label: "Road closed ahead" },
+  JAM: { label: "Traffic ahead" },
 };
 
 function formatApproachDistance(meters: number): string {
@@ -199,7 +200,7 @@ function LiveHome() {
   });
   const [policeAlertToast, setPoliceAlertToast] = useState<{ show: boolean; expanding: boolean } | null>(null);
   const alertedPoliceIdsRef = useRef<Set<string>>(new Set());
-  const [approachAlert, setApproachAlert] = useState<{ id: string; emoji: string; label: string; lat: number; lng: number } | null>(null);
+  const [approachAlert, setApproachAlert] = useState<{ id: string; type: string; label: string; lat: number; lng: number } | null>(null);
   const alertedReportIdsRef = useRef<Set<string>>(new Set());
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastAlertTimeRef = useRef<number>(0);
@@ -951,11 +952,11 @@ function LiveHome() {
       alertedReportIdsRef.current.add(a.uuid);
       lastAlertTimeRef.current = now;
 
-      const meta = APPROACH_ALERT_META[a.type] ?? { emoji: "⚠️", label: "Hazard ahead" };
+      const meta = APPROACH_ALERT_META[a.type] ?? { label: "Hazard ahead" };
       const subtype = a.subtype ? ` - ${a.subtype.toLowerCase().replace(/_/g, " ")}` : "";
       setApproachAlert({
         id: a.uuid,
-        emoji: meta.emoji,
+        type: a.type,
         label: meta.label + subtype,
         lat: a.location.y,
         lng: a.location.x,
@@ -1162,7 +1163,13 @@ function LiveHome() {
   }
 
   return (
-    <main className="relative w-full h-full" onPointerDown={showControlsTemporarily}>
+    <main
+      className="relative w-full h-full"
+      onPointerDown={() => {
+        showControlsTemporarily();
+        setStyleMenuOpen(false);
+      }}
+    >
       {/* Map */}
       <Map
         ref={mapRef}
@@ -1469,7 +1476,7 @@ function LiveHome() {
             )}
             {alertCounts.traffic > 0 && (
               <span className="flex items-center gap-1.5 text-base">
-                <span className="text-lg leading-none">🚗</span>
+                <TrafficLightIcon className="w-5 h-5 text-purple-400" />
                 <span className="font-semibold">{alertCounts.traffic}</span>
               </span>
             )}
@@ -1501,15 +1508,15 @@ function LiveHome() {
               `}
               aria-label="Change map style"
             >
-              <span className="text-xl leading-none">🛰️</span>
+              <LayersIcon className="w-6 h-6" />
             </button>
             {styleMenuOpen && (
               <div className={`absolute right-14 top-0 w-44 rounded-xl backdrop-blur-xl border shadow-2xl overflow-hidden ${effectiveDarkMode ? "bg-[#1a1a1a]/95 border-white/15 text-white" : "bg-white/95 border-black/10 text-black"}`}>
                 {([
-                  { key: "light", label: "Light", emoji: "☀️", active: !useSatellite && !use3DMode && !isDarkMode },
-                  { key: "dark", label: "Dark", emoji: "🌙", active: !useSatellite && !use3DMode && isDarkMode },
-                  { key: "satellite", label: "Satellite", emoji: "🛰️", active: useSatellite },
-                  { key: "3d", label: "3D", emoji: "🏙️", active: !useSatellite && use3DMode },
+                  { key: "light", label: "Light", Icon: SunIcon, active: !useSatellite && !use3DMode && !isDarkMode },
+                  { key: "dark", label: "Dark", Icon: MoonIcon, active: !useSatellite && !use3DMode && isDarkMode },
+                  { key: "satellite", label: "Satellite", Icon: SatelliteIcon, active: useSatellite },
+                  { key: "3d", label: "3D", Icon: CubeIcon, active: !useSatellite && use3DMode },
                 ] as const).map((opt) => (
                   <button
                     key={opt.key}
@@ -1530,7 +1537,7 @@ function LiveHome() {
                     }}
                     className={`w-full flex items-center gap-3 px-4 py-3 text-base font-medium transition-colors ${effectiveDarkMode ? "hover:bg-white/10" : "hover:bg-black/5"} ${opt.active ? "text-[#e82127]" : ""}`}
                   >
-                    <span className="text-xl leading-none">{opt.emoji}</span>
+                    <opt.Icon className="w-5 h-5" />
                     <span className="flex-1 text-left">{opt.label}</span>
                     {opt.active && <span>✓</span>}
                   </button>
@@ -1550,11 +1557,7 @@ function LiveHome() {
             `}
             aria-label={showTraffic ? "Hide traffic" : "Show traffic"}
           >
-            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
-              <rect x="3" y="14" width="4" height="7" rx="1" />
-              <rect x="10" y="9" width="4" height="12" rx="1" />
-              <rect x="17" y="4" width="4" height="17" rx="1" />
-            </svg>
+            <TrafficLightIcon className="w-6 h-6" />
           </button>
         </div>
       </div>
@@ -1572,7 +1575,7 @@ function LiveHome() {
                     onClick={() => (cat.children ? setPickerLevel(cat.key) : handleSubmitReport(cat.type!))}
                     className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
                   >
-                    <span className="text-xl leading-none">{cat.emoji}</span>
+                    <ReportIcon icon={cat.icon} className="w-6 h-6" />
                     {cat.label}
                     {cat.children && <span className="text-white/50">›</span>}
                   </button>
@@ -1585,7 +1588,7 @@ function LiveHome() {
                       onClick={() => handleSubmitReport(opt.type)}
                       className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
                     >
-                      <span className="text-xl leading-none">{opt.emoji}</span>
+                      <ReportIcon icon={opt.icon} className="w-6 h-6" />
                       {opt.label}
                     </button>
                   ))}
@@ -1797,7 +1800,7 @@ function LiveHome() {
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
           <div className="approach-alert-banner bg-black/90 backdrop-blur-md text-white px-8 py-4 rounded-2xl shadow-2xl border border-white/20">
             <div className="flex items-center gap-3">
-              <span className="text-3xl">{approachAlert.emoji}</span>
+              <ApproachAlertIcon type={approachAlert.type} className="w-9 h-9" />
               <div className="flex flex-col">
                 <span className="text-xl font-bold tracking-wide whitespace-nowrap">{approachAlert.label}</span>
                 {latitude && longitude && (
