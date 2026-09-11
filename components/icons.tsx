@@ -210,6 +210,16 @@ export function SpeakerIcon({ className }: IconProps) {
   );
 }
 
+export function ZoomIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.5-4.5" />
+      <path d="M11 8.5v5M8.5 11h5" />
+    </Svg>
+  );
+}
+
 export function PulseIcon({ className }: IconProps) {
   return (
     <Svg className={className}>
@@ -248,6 +258,7 @@ export function ApproachAlertIcon({ type, className }: { type: string; className
     case "ACCIDENT": return <CrashIcon className={className} />;
     case "ROAD_CLOSED": return <ClosureIcon className={className} />;
     case "JAM": return <TrafficLightIcon className={className} />;
+    case "CAMERA": return <CameraIcon className={className} />;
     default: return <HazardIcon className={className} />;
   }
 }

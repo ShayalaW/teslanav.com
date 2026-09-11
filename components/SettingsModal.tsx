@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SunIcon, MoonIcon, AutoThemeIcon, SatelliteIcon, CameraIcon, SpeakerIcon, PulseIcon, CubeIcon } from "./icons";
+import { SunIcon, MoonIcon, AutoThemeIcon, SatelliteIcon, CameraIcon, SpeakerIcon, PulseIcon, CubeIcon, ZoomIcon } from "./icons";
+import { APP_VERSION } from "@/lib/version";
 import posthog from "posthog-js";
 import { ShieldExclamationIcon, MapIcon } from "@heroicons/react/24/solid";
 
@@ -30,6 +31,12 @@ interface SettingsModalProps {
   // 3D mode settings
   use3DMode: boolean;
   onToggle3DMode: (value: boolean) => void;
+  // Voice callouts
+  voiceAlerts: boolean;
+  onToggleVoiceAlerts: (value: boolean) => void;
+  // Auto-zoom with speed
+  autoZoom: boolean;
+  onToggleAutoZoom: (value: boolean) => void;
 }
 
 export function SettingsModal({
@@ -55,6 +62,10 @@ export function SettingsModal({
   onTogglePoliceAlertSound,
   use3DMode,
   onToggle3DMode,
+  voiceAlerts,
+  onToggleVoiceAlerts,
+  autoZoom,
+  onToggleAutoZoom,
 }: SettingsModalProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
@@ -380,6 +391,32 @@ export function SettingsModal({
                     isDarkMode={isDarkMode}
                   />
                 </div>
+
+                {/* Voice Callout Toggle */}
+                <div className={`
+                  flex items-center justify-between p-5 rounded-xl
+                  ${isDarkMode ? "bg-white/5" : "bg-black/5"}
+                `}>
+                  <div className="flex items-center gap-4">
+                    <span className="text-gray-400"><SpeakerIcon className="w-7 h-7" /></span>
+                    <div>
+                      <div className="text-lg font-medium">Voice Callouts</div>
+                      <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                        Speak alerts out loud as you approach
+                      </div>
+                    </div>
+                  </div>
+                  <Toggle
+                    enabled={voiceAlerts}
+                    onToggle={(value) => {
+                      onToggleVoiceAlerts(value);
+                      posthog.capture("voice_alerts_toggled", {
+                        voice_enabled: value,
+                      });
+                    }}
+                    isDarkMode={isDarkMode}
+                  />
+                </div>
               </div>
             </div>
 
@@ -460,6 +497,34 @@ export function SettingsModal({
                     <span className="font-medium">Note:</span> 3D mode may not work on older Tesla browsers. Enabling this will also activate follow mode for the best experience.
                   </div>
                 </div>
+
+                {/* Auto-Zoom Toggle */}
+                <div className={`
+                  p-5 rounded-xl
+                  ${isDarkMode ? "bg-white/5" : "bg-black/5"}
+                `}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <span className="text-gray-400"><ZoomIcon className="w-7 h-7" /></span>
+                      <div>
+                        <div className="text-lg font-medium">Auto-Zoom</div>
+                        <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                          Zoom with your speed while following you
+                        </div>
+                      </div>
+                    </div>
+                    <Toggle
+                      enabled={autoZoom}
+                      onToggle={(value) => {
+                        onToggleAutoZoom(value);
+                        posthog.capture("auto_zoom_toggled", {
+                          auto_zoom_enabled: value,
+                        });
+                      }}
+                      isDarkMode={isDarkMode}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -476,9 +541,9 @@ export function SettingsModal({
                   onClick={onOpenChangelog}
                   className={`mb-3 text-base font-medium underline underline-offset-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
                 >
-                  What&apos;s new in v1.0
+                  What&apos;s new in v{APP_VERSION}
                 </button>
-                <div className="text-lg font-medium">Radar</div>
+                <div className="text-lg font-medium">Radar <span className={`text-sm font-normal ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>v{APP_VERSION}</span></div>
                 <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                   Crowd-sourced driver alerts for your Tesla
                 </div>

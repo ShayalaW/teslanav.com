@@ -91,6 +91,24 @@ function formatApproachDistance(meters: number): string {
   return `${miles.toFixed(1)} mi ahead`;
 }
 
+function milesPhrase(meters: number): string {
+  const miles = meters / 1609.34;
+  if (miles < 0.1) return "right ahead";
+  return `in ${miles.toFixed(1)} miles`;
+}
+
+function speakAlert(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  } catch {
+    // Speech unsupported on this browser - the chime still covers the alert
+  }
+}
+
 function LiveHome() {
   // Use lazy initialization to read from localStorage immediately
   // This ensures the map initializes with the correct theme before first render
@@ -130,6 +148,27 @@ function LiveHome() {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [showWazeAlerts, setShowWazeAlerts] = useState(true);
   const [showSpeedCameras, setShowSpeedCameras] = useState(true);
+  const [voiceAlerts, setVoiceAlerts] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("teslanav-voice-alerts");
+      return saved === null ? true : saved === "true";
+    }
+    return true;
+  });
+  const [autoZoom, setAutoZoom] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("teslanav-auto-zoom");
+      return saved === null ? true : saved === "true";
+    }
+    return true;
+  });
+  const [lastReportType, setLastReportType] = useState<ReportType | null>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("radar-last-report-type");
+      if (saved && saved in REPORT_TYPE_META) return saved as ReportType;
+    }
+    return null;
+  });
   const [showTraffic, setShowTraffic] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("teslanav-traffic");
@@ -211,6 +250,10 @@ function LiveHome() {
   const alertedPoliceIdsRef = useRef<Set<string>>(new Set());
   const [approachAlert, setApproachAlert] = useState<{ id: string; type: string; label: string; lat: number; lng: number } | null>(null);
   const alertedReportIdsRef = useRef<Set<string>>(new Set());
+  const alertedCameraIdsRef = useRef<Set<string>>(new Set());
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressFiredRef = useRef(false);
+  const [reportHolding, setReportHolding] = useState(false);
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastAlertTimeRef = useRef<number>(0);
   const ALERT_COOLDOWN_MS = 5000; // 5 seconds between alerts
@@ -586,11 +629,37 @@ function LiveHome() {
       setReportToast(report ? `${label} reported` : "Report failed - try again");
       setTimeout(() => setReportToast(null), 2500);
       if (report) {
+        setLastReportType(type);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("radar-last-report-type", type);
+        }
         posthog.capture("report_submitted", { report_type: type });
       }
     },
     [latitude, longitude, submitReport, closeReportPicker]
   );
+
+  // Long-press the Report button to instantly re-report your last type
+  const startReportLongPress = useCallback(() => {
+    if (!lastReportType) return;
+    longPressFiredRef.current = false;
+    setReportHolding(true);
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      setReportHolding(false);
+      // Anchor at the moment the long-press completes
+      reportAnchorRef.current = latitude && longitude ? { lat: latitude, lng: longitude } : null;
+      handleSubmitReport(lastReportType);
+    }, 550);
+  }, [lastReportType, latitude, longitude, handleSubmitReport]);
+
+  const cancelReportLongPress = useCallback(() => {
+    setReportHolding(false);
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
 
   // Remove one of your own reports
   const handleRemoveReport = useCallback(async () => {
@@ -693,6 +762,20 @@ function LiveHome() {
   }, []);
 
   // Save 3D mode preference to localStorage and auto-enable follow mode
+  const handleToggleVoiceAlerts = useCallback((value: boolean) => {
+    setVoiceAlerts(value);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("teslanav-voice-alerts", value.toString());
+    }
+  }, []);
+
+  const handleToggleAutoZoom = useCallback((value: boolean) => {
+    setAutoZoom(value);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("teslanav-auto-zoom", value.toString());
+    }
+  }, []);
+
   const handleToggle3DMode = useCallback((value: boolean) => {
     setUse3DMode(value);
     if (typeof window !== "undefined") {
@@ -759,6 +842,8 @@ function LiveHome() {
     
     // Clear any alerted police so they can re-trigger during simulation
     alertedPoliceIdsRef.current.clear();
+    alertedReportIdsRef.current.clear();
+    alertedCameraIdsRef.current.clear();
     // Reset warmup timer so nearby alerts at sim start are silently marked as seen
     pageLoadTimeRef.current = Date.now();
     // Also reset the cooldown
@@ -923,6 +1008,11 @@ function LiveHome() {
             console.log("Audio play failed:", err);
           });
         }
+
+        // Voice callout
+        if (voiceAlerts) {
+          speakAlert(`Police reported ${milesPhrase(distance)}`);
+        }
         
         // Track the alert
         posthog.capture("police_alert_triggered", {
@@ -940,7 +1030,7 @@ function LiveHome() {
         break;
       }
     }
-  }, [latitude, longitude, alerts, policeAlertDistance, policeAlertSound, showWazeAlerts, getDistanceInMeters, effectiveHeading, isAlertAhead]);
+  }, [latitude, longitude, alerts, policeAlertDistance, policeAlertSound, voiceAlerts, showWazeAlerts, getDistanceInMeters, effectiveHeading, isAlertAhead]);
 
   // Approach alerts for everything that is not police: hazards, crashes, closures, traffic
   useEffect(() => {
@@ -988,6 +1078,10 @@ function LiveHome() {
         alertAudioRef.current.play().catch((err) => console.log("Audio play failed:", err));
       }
 
+      if (voiceAlerts) {
+        speakAlert(`${meta.label}${a.subtype ? ", " + a.subtype.toLowerCase().replace(/_/g, " ") : ""} ${milesPhrase(distance)}`);
+      }
+
       posthog.capture("approach_alert_triggered", {
         alert_type: a.type,
         alert_subtype: a.subtype,
@@ -999,7 +1093,69 @@ function LiveHome() {
       setTimeout(() => setApproachAlert((cur) => (cur?.id === a.uuid ? null : cur)), 6000);
       break;
     }
-  }, [latitude, longitude, alerts, showWazeAlerts, policeAlertSound, getDistanceInMeters, effectiveHeading, isAlertAhead]);
+  }, [latitude, longitude, alerts, showWazeAlerts, policeAlertSound, voiceAlerts, getDistanceInMeters, effectiveHeading, isAlertAhead]);
+
+  // Speed camera approach alerts - same banner + chime as community reports
+  useEffect(() => {
+    if (!latitude || !longitude || !showSpeedCameras) return;
+    if (cameras.length === 0) return;
+
+    const now = Date.now();
+    // Warmup: silently mark nearby cameras as seen right after page load
+    if (now - pageLoadTimeRef.current < WARMUP_PERIOD_MS) {
+      for (const c of cameras) {
+        if (getDistanceInMeters(latitude, longitude, c.location.lat, c.location.lon) <= APPROACH_ALERT_DISTANCE_M) {
+          alertedCameraIdsRef.current.add(c.id);
+        }
+      }
+      return;
+    }
+    if (now - lastAlertTimeRef.current < ALERT_COOLDOWN_MS) return;
+
+    for (const c of cameras) {
+      if (alertedCameraIdsRef.current.has(c.id)) continue;
+      const distance = getDistanceInMeters(latitude, longitude, c.location.lat, c.location.lon);
+      if (distance > APPROACH_ALERT_DISTANCE_M) continue;
+      if (!isAlertAhead(c.location.lat, c.location.lon, effectiveHeading)) {
+        alertedCameraIdsRef.current.add(c.id);
+        continue;
+      }
+      alertedCameraIdsRef.current.add(c.id);
+      lastAlertTimeRef.current = now;
+
+      const label = c.type === "red_light_camera"
+        ? "Red light camera ahead"
+        : c.type === "average_speed_camera"
+          ? "Average speed camera ahead"
+          : "Speed camera ahead";
+
+      setApproachAlert({
+        id: c.id,
+        type: "CAMERA",
+        label,
+        lat: c.location.lat,
+        lng: c.location.lon,
+      });
+
+      if (policeAlertSound && alertAudioRef.current) {
+        alertAudioRef.current.currentTime = 0;
+        alertAudioRef.current.play().catch((err) => console.log("Audio play failed:", err));
+      }
+
+      if (voiceAlerts) {
+        speakAlert(`${label} ${milesPhrase(distance)}`);
+      }
+
+      posthog.capture("camera_alert_triggered", {
+        camera_type: c.type,
+        distance_meters: Math.round(distance),
+      });
+
+      // Auto-hide after 6 seconds
+      setTimeout(() => setApproachAlert((cur) => (cur?.id === c.id ? null : cur)), 6000);
+      break;
+    }
+  }, [latitude, longitude, cameras, showSpeedCameras, policeAlertSound, voiceAlerts, getDistanceInMeters, effectiveHeading, isAlertAhead]);
 
   // Dismiss the approach banner once we pass the report
   useEffect(() => {
@@ -1043,10 +1199,70 @@ function LiveHome() {
             a.muted = false;
           });
       }
+      // Warm up speech synthesis too (same autoplay gesture requirement)
+      try {
+        const s = window.speechSynthesis;
+        if (s) {
+          const u = new SpeechSynthesisUtterance(" ");
+          u.volume = 0;
+          s.speak(u);
+          s.cancel();
+        }
+      } catch {}
       window.removeEventListener("pointerdown", unlock);
     };
     window.addEventListener("pointerdown", unlock, { once: true });
     return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
+
+  // Keep the screen awake while Radar is open (Tesla display / phone)
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    let sentinel: { release: () => Promise<void> } | null = null;
+    const request = async () => {
+      try {
+        sentinel = await (navigator as unknown as {
+          wakeLock: { request: (type: string) => Promise<{ release: () => Promise<void> }> };
+        }).wakeLock.request("screen");
+      } catch {
+        // Unsupported or refused (e.g. low battery) - silent no-op
+      }
+    };
+    request();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") request();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      sentinel?.release?.().catch(() => {});
+    };
+  }, []);
+
+  // Auto-reload when a new deploy lands - the Tesla browser keeps pages
+  // open for days and would otherwise run stale builds forever
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let current: string | null = null;
+    const check = async () => {
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const id = data.commit && data.commit !== "dev" ? data.commit : data.version;
+        if (!id) return;
+        if (current === null) {
+          current = id;
+        } else if (id !== current && document.visibilityState === "visible") {
+          window.location.reload();
+        }
+      } catch {
+        // Offline - try again on the next tick
+      }
+    };
+    check();
+    const intervalId = setInterval(check, 120000);
+    return () => clearInterval(intervalId);
   }, []);
 
   // Close the style menu when the secondary controls auto-hide
@@ -1220,6 +1436,7 @@ function LiveHome() {
         alertRadiusMeters={policeAlertDistance}
         debugTileBounds={isDevMode ? cachedTileBounds : undefined}
         use3DMode={use3DMode}
+        autoZoom={autoZoom}
       />
 
       {/* Context Menu - Shows on long press */}
@@ -1516,18 +1733,14 @@ function LiveHome() {
           </div>
         )}
 
-        {/* Speed Badge - top left, frosted blur (Tesla-style) */}
+        {/* Speed Badge - top left, plain blur (no styled tab) */}
         {speed != null && (
           <div
-            className={`
-              absolute top-4 left-4 z-30 flex items-baseline gap-1.5 px-4 py-2.5 rounded-2xl
-              backdrop-blur-xl shadow-lg border
-              ${getContainerStyles(effectiveDarkMode)}
-            `}
+            className="absolute top-4 left-4 z-30 flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
             aria-label="Current speed"
           >
             <span className="text-2xl font-bold leading-none">{Math.round(speed * 2.23694)}</span>
-            <span className={`text-[10px] uppercase tracking-wider ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+            <span className="text-[10px] uppercase tracking-wider text-white/60">
               mph
             </span>
           </div>
@@ -1650,7 +1863,16 @@ function LiveHome() {
             </div>
           )}
           <button
+            onPointerDown={startReportLongPress}
+            onPointerUp={cancelReportLongPress}
+            onPointerLeave={cancelReportLongPress}
+            onPointerCancel={cancelReportLongPress}
+            onContextMenu={(e) => e.preventDefault()}
             onClick={() => {
+              if (longPressFiredRef.current) {
+                longPressFiredRef.current = false;
+                return;
+              }
               if (showReportPicker) {
                 closeReportPicker();
                 return;
@@ -1665,9 +1887,10 @@ function LiveHome() {
               ${showReportPicker
                 ? "bg-white text-black border-white/40"
                 : "bg-[#e82127] text-white border-[#e82127]/40"}
+              ${reportHolding ? "scale-95 ring-4 ring-white/30" : ""}
               shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
             `}
-            aria-label="Report police, hazard, or accident"
+            aria-label="Report police, hazard, or accident - hold to re-report your last type"
           >
             <PlusIcon className={`w-5 h-5 transition-transform duration-300 ${showReportPicker ? "rotate-[135deg]" : ""}`} />
             <span className="text-base font-semibold">Report</span>
@@ -1909,6 +2132,10 @@ function LiveHome() {
         onTogglePoliceAlertSound={handleTogglePoliceAlertSound}
         use3DMode={use3DMode}
         onToggle3DMode={handleToggle3DMode}
+        voiceAlerts={voiceAlerts}
+        onToggleVoiceAlerts={handleToggleVoiceAlerts}
+        autoZoom={autoZoom}
+        onToggleAutoZoom={handleToggleAutoZoom}
       />
 
       {/* Feedback Modal */}

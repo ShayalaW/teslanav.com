@@ -44,6 +44,8 @@ interface MapProps {
   debugTileBounds?: Array<{ bounds: MapBounds; ageMs: number }>;
   // 3D terrain mode
   use3DMode?: boolean;
+  // Auto-zoom with speed (tighter when slow, wider when fast)
+  autoZoom?: boolean;
 }
 
 export interface MapRef {
@@ -249,6 +251,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     alertRadiusMeters = 500,
     debugTileBounds,
     use3DMode = false,
+    autoZoom = false,
   },
   ref
 ) {
@@ -265,6 +268,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerElRef = useRef<HTMLDivElement | null>(null);
   const pinMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const autoZoomBandRef = useRef<number | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [nightOverlayOpacity, setNightOverlayOpacity] = useState(0);
   const initialCenterSet = useRef(false);
@@ -546,6 +550,22 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
       }
     };
   }, [userLocation?.speed, mapLoaded]);
+
+  // Auto-zoom with speed (Tesla-style): tighter when slow, wider when fast
+  useEffect(() => {
+    if (!autoZoom || !followMode || !map.current || !mapLoaded) return;
+    if (routes.length > 0) return; // route view owns the zoom
+    const mph = (userLocation?.speed ?? 0) * 2.23694;
+    const band = mph < 10 ? 16.5 : mph < 35 ? 15.5 : mph < 55 ? 14.5 : 13.5;
+    // Never zoom on the first speed fix - wait until we have a baseline
+    if (autoZoomBandRef.current === null) {
+      autoZoomBandRef.current = band;
+      return;
+    }
+    if (autoZoomBandRef.current === band) return;
+    autoZoomBandRef.current = band;
+    map.current.easeTo({ zoom: band, duration: 1200 });
+  }, [userLocation?.speed, followMode, autoZoom, mapLoaded, routes.length]);
 
   // Update night overlay opacity based on time of day (satellite mode only)
   useEffect(() => {

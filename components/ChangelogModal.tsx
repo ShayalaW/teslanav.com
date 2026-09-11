@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import posthog from "posthog-js";
 
-// Increment this version whenever you want to show the changelog again
-const CHANGELOG_VERSION = "1";
+// Bump this whenever a new release batch ships so the changelog shows again
+const CHANGELOG_VERSION = "1.1.0";
 
 interface ChangelogModalProps {
   isDarkMode: boolean;
@@ -113,6 +113,46 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-10 py-8">
           <div className="space-y-10">
+            {/* v1.1 */}
+            <div>
+              <h3 className="text-2xl font-semibold mb-1">Radar v1.1</h3>
+              <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                September 2026
+              </p>
+              <div className="space-y-8 mt-6">
+                <div>
+                  <h4 className="text-xl font-medium mb-3">Voice Callouts</h4>
+                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Radar speaks alerts out loud - &quot;Police reported in 0.4 miles&quot; - so your eyes stay on the road. Toggle it in Settings.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xl font-medium mb-3">Speed Camera Alerts</h4>
+                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Fixed speed and red-light cameras now trigger the same heads-up banner and chime as you approach them.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xl font-medium mb-3">Hold to Re-Report</h4>
+                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Press and hold the Report button to instantly drop another report of your last type - no menu, one motion.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xl font-medium mb-3">Auto-Zoom</h4>
+                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    The map zooms in when you slow down and out when you speed up, just like the built-in Tesla nav.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xl font-medium mb-3">Awake &amp; Up to Date</h4>
+                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Radar keeps the screen on while it&apos;s open, and updates itself the moment a new version ships - no refresh needed.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Version Header */}
             <div>
               <h3 className="text-2xl font-semibold mb-1">Radar v1.0</h3>
