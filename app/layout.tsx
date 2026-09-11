@@ -283,6 +283,32 @@ export default function RootLayout({
         )}
       </head>
       <body className={bodyClassName} style={bodyStyle}>
+        {/* Recover from stale-chunk errors after a redeploy: force one hard reload */}
+        <Script id="chunk-error-recovery" strategy="beforeInteractive">{`
+          (function () {
+            function isChunkError(msg) {
+              return typeof msg === "string" && (
+                msg.indexOf("ChunkLoadError") !== -1 ||
+                msg.indexOf("Loading chunk") !== -1 ||
+                msg.indexOf("Failed to fetch dynamically imported module") !== -1
+              );
+            }
+            function recover() {
+              try {
+                if (sessionStorage.getItem("radar-chunk-reload")) return;
+                sessionStorage.setItem("radar-chunk-reload", "1");
+              } catch (e) {}
+              window.location.reload();
+            }
+            window.addEventListener("error", function (e) {
+              if (isChunkError(e && e.message)) recover();
+            }, true);
+            window.addEventListener("unhandledrejection", function (e) {
+              var r = e && e.reason;
+              if (isChunkError(r && (r.message || r.name))) recover();
+            });
+          })();
+        `}</Script>
         {PROJECT_SHUTDOWN_ENABLED ? children : <Providers>{children}</Providers>}
       </body>
     </html>
