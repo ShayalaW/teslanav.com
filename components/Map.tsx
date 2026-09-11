@@ -20,6 +20,8 @@ interface MapProps {
   onBoundsChange?: (bounds: MapBounds) => void;
   onCenteredChange?: (isCentered: boolean) => void;
   onLongPress?: (lng: number, lat: number, screenX: number, screenY: number) => void;
+  // Tap on a community report pin (offers Still there?/Gone instead of a popup card)
+  onReportTap?: (reportId: string) => void;
   pinLocation?: { lng: number; lat: number } | null;
   route?: RouteData | null; // Legacy single route support
   routes?: RouteData[]; // Multiple routes for selection
@@ -233,6 +235,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     onBoundsChange,
     onCenteredChange,
     onLongPress,
+    onReportTap,
     pinLocation,
     route,
     routes = [],
@@ -254,6 +257,10 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
   const map = useRef<mapboxgl.Map | null>(null);
   // Use Maps for incremental marker updates (key = unique ID)
   const markersRef = useRef<globalThis.Map<string, mapboxgl.Marker>>(new globalThis.Map());
+  const onReportTapRef = useRef<MapProps["onReportTap"]>(undefined);
+  useEffect(() => {
+    onReportTapRef.current = onReportTap;
+  }, [onReportTap]);
   const cameraMarkersRef = useRef<globalThis.Map<string, mapboxgl.Marker>>(new globalThis.Map());
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerElRef = useRef<HTMLDivElement | null>(null);
@@ -1791,18 +1798,27 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
           </div>
         `;
 
-        const popup = new mapboxgl.Popup({
-          offset: 20,
-          closeButton: false,
-          maxWidth: "240px",
-          className: `alert-popup-container ${isDarkMode ? "dark" : ""}`,
-        }).setHTML(popupContent);
-
+        const isRadarReport = alert.provider === "radar";
         const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-          .setLngLat([alert.location.x, alert.location.y])
-          .setPopup(popup)
-          .addTo(map.current!);
+          .setLngLat([alert.location.x, alert.location.y]);
 
+        if (isRadarReport) {
+          // Community reports: tap offers Still there?/Gone actions instead of a popup card
+          el.addEventListener("click", (e) => {
+            e.stopPropagation();
+            onReportTapRef.current?.(alert.uuid.replace(/^radar-/, ""));
+          });
+        } else {
+          const popup = new mapboxgl.Popup({
+            offset: 20,
+            closeButton: false,
+            maxWidth: "240px",
+            className: `alert-popup-container ${isDarkMode ? "dark" : ""}`,
+          }).setHTML(popupContent);
+          marker.setPopup(popup);
+        }
+
+        marker.addTo(map.current!);
         markersRef.current.set(markerId, marker);
       }
 

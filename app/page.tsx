@@ -163,6 +163,15 @@ function LiveHome() {
 
   // Community reporting
   const [showReportPicker, setShowReportPicker] = useState(false);
+  const [pickerClosing, setPickerClosing] = useState(false);
+  const closeReportPicker = useCallback(() => {
+    setPickerClosing(true);
+    setTimeout(() => {
+      setShowReportPicker(false);
+      setPickerClosing(false);
+      setPickerLevel(null);
+    }, 260);
+  }, []);
   const [reportToast, setReportToast] = useState<string | null>(null);
   const [stillThere, setStillThere] = useState<UserReport | null>(null);
   const stillTherePromptedRef = useRef<Set<string>>(new Set());
@@ -239,7 +248,7 @@ function LiveHome() {
   // Simulated speed: ~25 m/s highway driving for testing, otherwise use real speed
   const speed = isSimulating ? 25 : realSpeed;
   const { alerts: wazeAlerts, loading: alertsLoading, cachedTileBounds } = useWazeAlerts({ bounds });
-  const { reports, submitReport, vote: voteReport, hasVoted, isOwn } = useReports({ bounds });
+  const { reports, submitReport, vote: voteReport, hasVoted, isOwn, removeReport } = useReports({ bounds });
 
   // Community reports ride the same pipeline as Waze alerts (markers, clustering, proximity alerts)
   const reportAlerts: WazeAlert[] = reports.map((r) => ({
@@ -571,8 +580,7 @@ function LiveHome() {
       const lng = anchor?.lng ?? longitude;
       if (!lat || !lng) return;
       reportAnchorRef.current = null;
-      setShowReportPicker(false);
-      setPickerLevel(null);
+      closeReportPicker();
       const label = REPORT_TYPE_META[type].label;
       const report = await submitReport(type, lat, lng);
       setReportToast(report ? `${label} reported` : "Report failed - try again");
@@ -581,8 +589,21 @@ function LiveHome() {
         posthog.capture("report_submitted", { report_type: type });
       }
     },
-    [latitude, longitude, submitReport]
+    [latitude, longitude, submitReport, closeReportPicker]
   );
+
+  // Remove one of your own reports
+  const handleRemoveReport = useCallback(async () => {
+    const r = stillThere;
+    if (!r) return;
+    setStillThere(null);
+    const ok = await removeReport(r.id);
+    setReportToast(ok ? "Report removed" : "Remove failed - try again");
+    setTimeout(() => setReportToast(null), 2500);
+    if (ok) {
+      posthog.capture("report_removed", { report_type: r.type });
+    }
+  }, [stillThere, removeReport]);
 
   // "Still there?" prompt when driving past a community report
   useEffect(() => {
@@ -1165,9 +1186,11 @@ function LiveHome() {
   return (
     <main
       className="relative w-full h-full"
-      onPointerDown={() => {
+      onPointerDown={(e) => {
         showControlsTemporarily();
-        setStyleMenuOpen(false);
+        if (!(e.target as HTMLElement).closest("[data-style-menu-root]")) {
+          setStyleMenuOpen(false);
+        }
       }}
     >
       {/* Map */}
@@ -1185,6 +1208,10 @@ function LiveHome() {
         routes={routes}
         selectedRouteIndex={selectedRouteIndex}
         userLocation={{ latitude, longitude, heading, effectiveHeading, speed }}
+        onReportTap={(id) => {
+          const r = reports.find((x) => x.id === id);
+          if (r) setStillThere(r);
+        }}
         followMode={followMode}
         showTraffic={showTraffic}
         useSatellite={useSatellite}
@@ -1489,13 +1516,30 @@ function LiveHome() {
           </div>
         )}
 
+        {/* Speed Badge - top left, frosted blur (Tesla-style) */}
+        {speed != null && (
+          <div
+            className={`
+              absolute top-4 left-4 z-30 flex items-baseline gap-1.5 px-4 py-2.5 rounded-2xl
+              backdrop-blur-xl shadow-lg border
+              ${getContainerStyles(effectiveDarkMode)}
+            `}
+            aria-label="Current speed"
+          >
+            <span className="text-2xl font-bold leading-none">{Math.round(speed * 2.23694)}</span>
+            <span className={`text-[10px] uppercase tracking-wider ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+              mph
+            </span>
+          </div>
+        )}
+
         {/* Secondary map controls - auto-hide while driving (Tesla-style) */}
         <div
           className={`flex flex-col items-end gap-2 transition-opacity duration-300 ${
             controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
           }`}
         >
-          <div className="relative">
+          <div className="relative" data-style-menu-root>
             <button
               onClick={() => {
                 setStyleMenuOpen((v) => !v);
@@ -1569,11 +1613,12 @@ function LiveHome() {
           {showReportPicker && (
             <div className="absolute bottom-full left-0 mb-3 flex flex-col items-start gap-2">
               {pickerLevel === null ? (
-                REPORT_PICKER.map((cat) => (
+                REPORT_PICKER.map((cat, i) => (
                   <button
                     key={cat.key}
                     onClick={() => (cat.children ? setPickerLevel(cat.key) : handleSubmitReport(cat.type!))}
-                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
+                    style={{ animationDelay: `${(REPORT_PICKER.length - 1 - i) * 35}ms` }}
+                    className={`speed-dial-item ${pickerClosing ? "speed-dial-down" : ""} flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-colors hover:bg-white/10 active:scale-95`}
                   >
                     <ReportIcon icon={cat.icon} className="w-6 h-6" />
                     {cat.label}
@@ -1582,11 +1627,12 @@ function LiveHome() {
                 ))
               ) : (
                 <>
-                  {REPORT_PICKER.find((c) => c.key === pickerLevel)?.children?.map((opt) => (
+                  {REPORT_PICKER.find((c) => c.key === pickerLevel)?.children?.map((opt, i, arr) => (
                     <button
                       key={opt.type}
                       onClick={() => handleSubmitReport(opt.type)}
-                      className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
+                      style={{ animationDelay: `${(arr.length - i) * 35}ms` }}
+                      className={`speed-dial-item ${pickerClosing ? "speed-dial-down" : ""} flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/70 text-white border border-white/15 backdrop-blur-xl shadow-lg text-sm font-medium whitespace-nowrap transition-colors hover:bg-white/10 active:scale-95`}
                     >
                       <ReportIcon icon={opt.icon} className="w-6 h-6" />
                       {opt.label}
@@ -1594,7 +1640,8 @@ function LiveHome() {
                   ))}
                   <button
                     onClick={() => setPickerLevel(null)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black/50 text-white/70 border border-white/10 backdrop-blur-xl text-sm transition-all hover:bg-white/10 active:scale-95"
+                    style={{ animationDelay: "0ms" }}
+                    className={`speed-dial-item ${pickerClosing ? "speed-dial-down" : ""} flex items-center gap-2 px-4 py-2 rounded-xl bg-black/50 text-white/70 border border-white/10 backdrop-blur-xl text-sm transition-colors hover:bg-white/10 active:scale-95`}
                   >
                     ‹ Back
                   </button>
@@ -1603,18 +1650,18 @@ function LiveHome() {
             </div>
           )}
           <button
-            onClick={() =>
-              setShowReportPicker((v) => {
-                if (!v) {
-                  // Anchor the report location NOW, at tap time
-                  reportAnchorRef.current = latitude && longitude ? { lat: latitude, lng: longitude } : null;
-                  setPickerLevel(null);
-                }
-                return !v;
-              })
-            }
+            onClick={() => {
+              if (showReportPicker) {
+                closeReportPicker();
+                return;
+              }
+              // Anchor the report location NOW, at tap time
+              reportAnchorRef.current = latitude && longitude ? { lat: latitude, lng: longitude } : null;
+              setPickerLevel(null);
+              setShowReportPicker(true);
+            }}
             className={`
-              px-5 h-20 rounded-xl flex items-center justify-center gap-2
+              px-5 h-16 rounded-xl flex items-center justify-center gap-2
               ${showReportPicker
                 ? "bg-white text-black border-white/40"
                 : "bg-[#e82127] text-white border-[#e82127]/40"}
@@ -1622,7 +1669,7 @@ function LiveHome() {
             `}
             aria-label="Report police, hazard, or accident"
           >
-            <PlusIcon className="w-5 h-5" />
+            <PlusIcon className={`w-5 h-5 transition-transform duration-300 ${showReportPicker ? "rotate-[135deg]" : ""}`} />
             <span className="text-base font-semibold">Report</span>
           </button>
         </div>
@@ -1643,22 +1690,7 @@ function LiveHome() {
           <SettingsIcon className="w-7 h-7" />
         </button>
 
-        {/* Speed Bubble */}
-        {speed != null && (
-          <div
-            className={`
-              w-16 h-16 rounded-full backdrop-blur-xl flex flex-col items-center justify-center
-              ${getContainerStyles(effectiveDarkMode)}
-              shadow-lg border
-            `}
-            aria-label="Current speed"
-          >
-            <span className="text-xl font-bold leading-none">{Math.round(speed * 2.23694)}</span>
-            <span className={`text-[9px] uppercase tracking-wider ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-              mph
-            </span>
-          </div>
-        )}
+
 
       </div>
 
@@ -1825,7 +1857,7 @@ function LiveHome() {
       {stillThere && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-5 py-3 rounded-2xl bg-black/85 text-white border border-white/15 backdrop-blur-xl shadow-2xl">
           <span className="text-sm font-medium whitespace-nowrap">
-            {REPORT_TYPE_META[stillThere.type].label} ahead - still there?
+            {REPORT_TYPE_META[stillThere.type].label} - still there?
           </span>
           <button
             onClick={() => handleStillThereVote("confirm")}
@@ -1839,6 +1871,14 @@ function LiveHome() {
           >
             Gone
           </button>
+          {isOwn(stillThere.id) && (
+            <button
+              onClick={handleRemoveReport}
+              className="px-4 py-2 rounded-lg bg-white/10 text-red-400 text-sm font-semibold transition-all hover:bg-white/20 active:scale-95"
+            >
+              Remove
+            </button>
+          )}
         </div>
       )}
 
@@ -1889,6 +1929,22 @@ function LiveHome() {
         }
         .approach-alert-banner {
           animation: approach-flash 1.2s ease-out;
+        }
+        @keyframes speed-dial-up {
+          from { opacity: 0; transform: translateY(28px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes speed-dial-down {
+          from { opacity: 1; transform: translateY(0) scale(1); }
+          to { opacity: 0; transform: translateY(28px) scale(0.95); }
+        }
+        .speed-dial-item {
+          animation: speed-dial-up 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+        }
+        .speed-dial-item.speed-dial-down {
+          animation-name: speed-dial-down;
+          animation-duration: 0.22s;
+          animation-timing-function: ease-in;
         }
         .police-alert-container {
           animation: container-fade 3s ease-out forwards;

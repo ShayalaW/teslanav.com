@@ -49,10 +49,12 @@ export function AutoThemeIcon({ className }: IconProps) {
 }
 
 export function SatelliteIcon({ className }: IconProps) {
+  // Globe with an orbit arc and a satellite dot
   return (
     <Svg className={className}>
-      <path d="M13.5 6.5l4 4M8 8l3-3 5 5-3 3zM4 12l3-3M14 20l3-3" />
-      <path d="M9.5 14.5L5 19M4.5 9.5a7 7 0 0 0 10 10" strokeDasharray="0" />
+      <circle cx="11" cy="13" r="6.5" />
+      <path d="M3 18.5C6 12.5 12 8.5 17.8 7.2" />
+      <circle cx="18.5" cy="6" r="1.6" fill="currentColor" stroke="none" />
     </Svg>
   );
 }
@@ -123,10 +125,12 @@ export function ConeIcon({ className }: IconProps) {
 }
 
 export function CarStopIcon({ className }: IconProps) {
+  // Two vertical road lines with a car dot sitting on the shoulder line
   return (
     <Svg className={className}>
-      <path d="M4 13l1.6-4.2A2 2 0 0 1 7.5 7.5h9a2 2 0 0 1 1.9 1.3L20 13v5h-2.5M4 13v5h2.5M4 13h16" />
-      <path d="M6.5 18h11" strokeDasharray="2.5 2.5" />
+      <path d="M8 3v18" />
+      <path d="M16.5 3v18" strokeDasharray="3.5 3" />
+      <circle cx="8" cy="12" r="3.5" fill="currentColor" stroke="none" />
     </Svg>
   );
 }

@@ -115,6 +115,18 @@ export function useReports({
     []
   );
 
+  const removeReport = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/reports/${id}`, { method: "DELETE" });
+      if (!res.ok) return false;
+      setReports((prev) => prev.filter((r) => r.id !== id));
+      return true;
+    } catch (err) {
+      console.error("Failed to remove report:", err);
+      return false;
+    }
+  }, []);
+
   const vote = useCallback(
     async (id: string, voteKind: "confirm" | "dismiss"): Promise<void> => {
       if (hasVoted(id)) return;
@@ -141,5 +153,5 @@ export function useReports({
     []
   );
 
-  return { reports, submitting, submitReport, vote, hasVoted, isOwn };
+  return { reports, submitting, submitReport, vote, hasVoted, isOwn, removeReport };
 }

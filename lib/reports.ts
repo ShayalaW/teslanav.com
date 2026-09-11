@@ -121,6 +121,10 @@ export async function voteReport(id: string, vote: "confirm" | "dismiss"): Promi
   return { status: "ok", report };
 }
 
+export async function deleteReport(id: string): Promise<boolean> {
+  return (await redis.hdel(REPORTS_HASH, id)) > 0;
+}
+
 // Rate limit helpers (per IP, fixed window)
 export async function checkRateLimit(key: string, limit: number, windowSeconds: number): Promise<boolean> {
   const count = await redis.incr(key);
