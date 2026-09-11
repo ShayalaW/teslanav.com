@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import posthog from "posthog-js";
+import { APP_VERSION } from "@/lib/version";
 
 // Bump this whenever a new release batch ships so the changelog shows again
 const CHANGELOG_VERSION = "1.2.0";
@@ -113,9 +114,9 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-10 py-8">
           <div className="space-y-10">
-            {/* v1.2 */}
+            {/* latest */}
             <div>
-              <h3 className="text-2xl font-semibold mb-1">Radar v1.2</h3>
+              <h3 className="text-2xl font-semibold mb-1">Radar v{APP_VERSION}</h3>
               <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                 September 2026
               </p>
@@ -130,6 +131,12 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
                   <h4 className="text-xl font-medium mb-3">Live Closures on the Road Ahead</h4>
                   <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Radar now checks the road in front of you for live closures and incidents and warns you with the same banner, chime, and voice callout as driver reports.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xl font-medium mb-3">Recenter Button Is Back</h4>
+                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Pan away and a recenter button appears under the zoom controls, one tap snaps back to you. The speed limit chip now stacks under the speed badge.
                   </p>
                 </div>
                 <div>

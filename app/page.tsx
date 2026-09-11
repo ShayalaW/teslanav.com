@@ -1395,6 +1395,14 @@ function LiveHome() {
     });
   }, []);
 
+  // Dedicated recenter (shows when panned away, under the zoom controls)
+  const handleRecenter = useCallback(() => {
+    if (latitude && longitude && mapRef.current) {
+      mapRef.current.recenter(longitude, latitude);
+      posthog.capture("map_recentered", { latitude, longitude, source: "recenter_button" });
+    }
+  }, [latitude, longitude]);
+
   // Tesla-style compass: tap re-centers and re-engages tracking when panned away
   const handleCompassTap = useCallback(() => {
     if (!isCentered && latitude && longitude && mapRef.current) {
@@ -1738,7 +1746,7 @@ function LiveHome() {
 
       {/* Speed Badge + Speed Limit - top left, plain blur (no styled tab) */}
       {speed != null && (
-        <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
+        <div className="absolute top-4 left-4 z-30 flex flex-col items-center gap-2">
           <div
             className="flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
             aria-label="Current speed"
@@ -2100,6 +2108,21 @@ function LiveHome() {
             <MinusIcon className="w-7 h-7" />
           </button>
         </div>
+
+        {/* Recenter - appears under zoom when panned away */}
+        {!isCentered && (
+          <button
+            onClick={handleRecenter}
+            className={`
+              w-16 h-12 rounded-xl backdrop-blur-xl flex items-center justify-center
+              ${getButtonStyles(effectiveDarkMode)}
+              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
+            `}
+            aria-label="Recenter map"
+          >
+            <RecenterIcon className="w-6 h-6" />
+          </button>
+        )}
       </div>
 
 
@@ -2431,6 +2454,16 @@ function ShutdownHome() {
 }
 
 
+
+function RecenterIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="7" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 function PlusIcon({ className }: { className?: string }) {
   return (

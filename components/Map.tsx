@@ -644,6 +644,9 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         }
       };
       
+      // Expose the map instance for debugging/verification
+      (window as unknown as { __radarMap?: mapboxgl.Map | null }).__radarMap = map.current;
+
       // Try immediately
       addInitialTraffic();
       
@@ -945,6 +948,21 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     isDarkModeRef.current = isDarkMode;
   }, [isDarkMode]);
 
+  // style.load fires before the new style accepts modifications on slow
+  // browsers (Tesla): attempt, and retry on failure instead of dropping layers
+  const retryUntilStyleReady = useCallback((fn: () => void, attempts = 0) => {
+    if (!map.current) return;
+    try {
+      fn();
+    } catch (e) {
+      if (attempts < 24) {
+        setTimeout(() => retryUntilStyleReady(fn, attempts + 1), 250);
+      } else {
+        console.log("Layer operation failed after retries:", e);
+      }
+    }
+  }, []);
+
   // Set up persistent style.load listener for traffic layer (runs once when map loads)
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
@@ -952,8 +970,6 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     const mapInstance = map.current;
 
     const addTrafficLayer = () => {
-      if (!mapInstance.isStyleLoaded()) return;
-      
       try {
         if (!mapInstance.getSource("mapbox-traffic")) {
           mapInstance.addSource("mapbox-traffic", {
@@ -989,14 +1005,14 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         }
       } catch (e) {
         console.log("Error adding traffic layer:", e);
+        throw e;
       }
     };
 
     // Handler for when style loads/changes - re-add traffic if enabled
     const handleStyleLoad = () => {
       if (showTrafficRef.current) {
-        // Small delay to ensure style is fully ready
-        setTimeout(() => addTrafficLayer(), 100);
+        retryUntilStyleReady(addTrafficLayer);
       }
     };
 
@@ -1005,14 +1021,14 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
 
     // IMPORTANT: Also add traffic now if style is already loaded and traffic is enabled
     // This handles the initial load case where style.load may have already fired
-    if (showTrafficRef.current && mapInstance.isStyleLoaded()) {
-      addTrafficLayer();
+    if (showTrafficRef.current) {
+      retryUntilStyleReady(addTrafficLayer);
     }
 
     return () => {
       mapInstance.off("style.load", handleStyleLoad);
     };
-  }, [mapLoaded]);
+  }, [mapLoaded, retryUntilStyleReady]);
 
   // Toggle traffic layer on/off based on showTraffic prop
   useEffect(() => {
@@ -1021,8 +1037,6 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     const mapInstance = map.current;
 
     const addTrafficLayer = () => {
-      if (!mapInstance.isStyleLoaded()) return;
-      
       try {
         if (!mapInstance.getSource("mapbox-traffic")) {
           mapInstance.addSource("mapbox-traffic", {
@@ -1058,6 +1072,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         }
       } catch (e) {
         console.log("Error adding traffic layer:", e);
+        throw e;
       }
     };
 
@@ -1071,19 +1086,16 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         }
       } catch (e) {
         console.log("Error removing traffic layer:", e);
+        throw e;
       }
     };
 
     if (showTraffic) {
-      if (mapInstance.isStyleLoaded()) {
-        addTrafficLayer();
-      }
+      retryUntilStyleReady(addTrafficLayer);
     } else {
-      if (mapInstance.isStyleLoaded()) {
-        removeTrafficLayer();
-      }
+      retryUntilStyleReady(removeTrafficLayer);
     }
-  }, [showTraffic, mapLoaded]);
+  }, [showTraffic, mapLoaded, retryUntilStyleReady]);
 
   // Toggle 3D terrain on/off based on use3DMode prop
   useEffect(() => {
@@ -1092,8 +1104,6 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     const mapInstance = map.current;
 
     const add3DTerrain = () => {
-      if (!mapInstance.isStyleLoaded()) return;
-      
       try {
         // Add terrain elevation
         if (!mapInstance.getSource("mapbox-dem")) {
@@ -1156,19 +1166,16 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         mapInstance.easeTo({ pitch: 0, duration: 500 });
       } catch (e) {
         console.log("Error removing 3D terrain:", e);
+        throw e;
       }
     };
 
     if (use3DMode) {
-      if (mapInstance.isStyleLoaded()) {
-        add3DTerrain();
-      }
+      retryUntilStyleReady(add3DTerrain);
     } else {
-      if (mapInstance.isStyleLoaded()) {
-        remove3DTerrain();
-      }
+      retryUntilStyleReady(remove3DTerrain);
     }
-  }, [use3DMode, mapLoaded]);
+  }, [use3DMode, mapLoaded, retryUntilStyleReady]);
 
   // Set up persistent style.load listener for 3D terrain (runs when style changes)
   useEffect(() => {
@@ -1177,8 +1184,6 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     const mapInstance = map.current;
 
     const add3DTerrainLayer = () => {
-      if (!mapInstance.isStyleLoaded()) return;
-      
       try {
         // Add terrain
         if (!mapInstance.getSource("mapbox-dem")) {
@@ -1222,14 +1227,14 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         }
       } catch (e) {
         console.log("Error adding 3D terrain layer:", e);
+        throw e;
       }
     };
 
     // Handler for when style loads/changes - re-add terrain if enabled
     const handleStyleLoad = () => {
       if (use3DModeRef.current) {
-        // Small delay to ensure style is fully ready
-        setTimeout(() => add3DTerrainLayer(), 100);
+        retryUntilStyleReady(add3DTerrainLayer);
       }
     };
 
@@ -1237,8 +1242,8 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     mapInstance.on("style.load", handleStyleLoad);
 
     // IMPORTANT: Also add terrain now if style is already loaded and 3D mode is enabled
-    if (use3DModeRef.current && mapInstance.isStyleLoaded()) {
-      add3DTerrainLayer();
+    if (use3DModeRef.current) {
+      retryUntilStyleReady(add3DTerrainLayer);
     }
 
     return () => {
