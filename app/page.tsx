@@ -1656,6 +1656,19 @@ function LiveHome() {
         )}
       </div>
 
+      {/* Speed Badge - top left, plain blur (no styled tab) */}
+      {speed != null && (
+          <div
+            className="absolute top-4 left-4 z-30 flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
+            aria-label="Current speed"
+          >
+            <span className="text-2xl font-bold leading-none">{Math.round(speed * 2.23694)}</span>
+            <span className="text-[10px] uppercase tracking-wider text-white/60">
+              mph
+            </span>
+          </div>
+      )}
+
       {/* Top Right - Compass + Alert Summary (stacked) */}
       <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-3">
         {/* Compass/Orientation Toggle */}
@@ -1730,19 +1743,6 @@ function LiveHome() {
                 <span className="font-semibold">{alertCounts.closures}</span>
               </span>
             )}
-          </div>
-        )}
-
-        {/* Speed Badge - top left, plain blur (no styled tab) */}
-        {speed != null && (
-          <div
-            className="absolute top-4 left-4 z-30 flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
-            aria-label="Current speed"
-          >
-            <span className="text-2xl font-bold leading-none">{Math.round(speed * 2.23694)}</span>
-            <span className="text-[10px] uppercase tracking-wider text-white/60">
-              mph
-            </span>
           </div>
         )}
 
