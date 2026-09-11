@@ -8,6 +8,7 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   isDarkMode: boolean;
+  onToggleDarkMode: () => void;
   showWazeAlerts: boolean;
   onToggleWazeAlerts: (value: boolean) => void;
   showSpeedCameras: boolean;
@@ -32,6 +33,7 @@ export function SettingsModal({
   isOpen,
   onClose,
   isDarkMode,
+  onToggleDarkMode,
   showWazeAlerts,
   onToggleWazeAlerts,
   showSpeedCameras,
@@ -128,6 +130,39 @@ export function SettingsModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-lg mx-auto space-y-8">
+            {/* Appearance Section */}
+            {!useSatellite && (
+              <div>
+                <h3 className={`text-base font-medium uppercase tracking-wider mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  Appearance
+                </h3>
+                <div className="space-y-4">
+                  <div className={`
+                    flex items-center justify-between p-5 rounded-xl
+                    ${isDarkMode ? "bg-white/5" : "bg-black/5"}
+                  `}>
+                    <div className="flex items-center gap-4">
+                      <span className="text-3xl">{isDarkMode ? "🌙" : "☀️"}</span>
+                      <div>
+                        <div className="text-lg font-medium">Dark Mode</div>
+                        <div className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                          Easier on the eyes at night
+                        </div>
+                      </div>
+                    </div>
+                    <Toggle
+                      enabled={isDarkMode}
+                      onToggle={() => {
+                        onToggleDarkMode();
+                        posthog.capture("dark_mode_toggled", { dark_mode: !isDarkMode });
+                      }}
+                      isDarkMode={isDarkMode}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Map Style Section */}
             <div>
               <h3 className={`text-base font-medium uppercase tracking-wider mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>

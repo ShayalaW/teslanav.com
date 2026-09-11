@@ -1381,7 +1381,7 @@ function LiveHome() {
       </div>
 
       {/* Bottom Right - Control Buttons */}
-      <div className="absolute bottom-6 right-4 z-30 flex gap-3">
+      <div className="absolute bottom-6 right-4 z-30 flex items-end gap-3">
         {/* Report Button + Type Picker */}
         <div className="relative">
           {showReportPicker && (
@@ -1413,7 +1413,7 @@ function LiveHome() {
           <button
             onClick={() => setShowReportPicker((v) => !v)}
             className={`
-              px-5 h-16 rounded-xl flex items-center justify-center gap-2
+              px-5 h-20 rounded-xl flex items-center justify-center gap-2
               ${showReportPicker
                 ? "bg-white text-black border-white/40"
                 : "bg-[#e82127] text-white border-[#e82127]/40"}
@@ -1497,50 +1497,36 @@ function LiveHome() {
           </button>
         )}
 
-        {/* Zoom Out */}
-        <button
-          onClick={handleZoomOut}
+        {/* Zoom Controls - single vertical pill */}
+        <div
           className={`
-            w-16 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center
+            w-16 rounded-xl backdrop-blur-xl flex flex-col overflow-hidden
             ${getButtonStyles(effectiveDarkMode)}
-            shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
+            shadow-lg border
           `}
-          aria-label="Zoom out"
         >
-          <MinusIcon className="w-7 h-7" />
-        </button>
-
-        {/* Zoom In */}
-        <button
-          onClick={handleZoomIn}
-          className={`
-            w-16 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center
-            ${getButtonStyles(effectiveDarkMode)}
-            shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
-          `}
-          aria-label="Zoom in"
-        >
-          <PlusIcon className="w-7 h-7" />
-        </button>
-
-        {/* Dark Mode Toggle - Hidden in satellite mode since satellite always uses dark UI */}
-        {!useSatellite && (
           <button
-            onClick={toggleDarkMode}
+            onClick={handleZoomIn}
             className={`
-              w-16 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center
-              ${getButtonStyles(effectiveDarkMode)}
-              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
+              w-16 h-12 flex items-center justify-center
+              transition-all duration-200 hover:scale-105 active:scale-95
             `}
-            aria-label="Toggle dark mode"
+            aria-label="Zoom in"
           >
-            {isDarkMode ? (
-              <SunIcon className="w-7 h-7" />
-            ) : (
-              <MoonIcon className="w-7 h-7" />
-            )}
+            <PlusIcon className="w-7 h-7" />
           </button>
-        )}
+          <div className={`h-px mx-3 ${effectiveDarkMode ? "bg-white/10" : "bg-black/10"}`} />
+          <button
+            onClick={handleZoomOut}
+            className={`
+              w-16 h-12 flex items-center justify-center
+              transition-all duration-200 hover:scale-105 active:scale-95
+            `}
+            aria-label="Zoom out"
+          >
+            <MinusIcon className="w-7 h-7" />
+          </button>
+        </div>
       </div>
 
 
@@ -1619,6 +1605,7 @@ function LiveHome() {
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
         isDarkMode={effectiveDarkMode}
+        onToggleDarkMode={toggleDarkMode}
         showWazeAlerts={showWazeAlerts}
         onToggleWazeAlerts={setShowWazeAlerts}
         showSpeedCameras={showSpeedCameras}
@@ -1805,21 +1792,7 @@ function ShutdownHome() {
   );
 }
 
-function SunIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-    </svg>
-  );
-}
 
-function MoonIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-    </svg>
-  );
-}
 
 function PlusIcon({ className }: { className?: string }) {
   return (
