@@ -12,6 +12,7 @@ export interface RouteStep {
     type: string;
     modifier?: string;
     bearing_after?: number;
+    location: [number, number]; // [lng, lat]
   };
 }
 
@@ -100,6 +101,7 @@ export async function GET(request: NextRequest) {
             type: string;
             modifier?: string;
             bearing_after?: number;
+            location: [number, number];
           };
           distance: number;
           duration: number;
@@ -125,6 +127,7 @@ export async function GET(request: NextRequest) {
             type: step.maneuver.type,
             modifier: step.maneuver.modifier,
             bearing_after: step.maneuver.bearing_after,
+            location: step.maneuver.location,
           },
         })),
       };

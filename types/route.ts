@@ -7,6 +7,7 @@ export interface RouteStep {
     type: string;
     modifier?: string;
     bearing_after?: number;
+    location: [number, number]; // [lng, lat]
   };
 }
 

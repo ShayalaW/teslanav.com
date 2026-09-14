@@ -15,7 +15,7 @@ import { PROJECT_SHUTDOWN_ENABLED, PROJECT_SHUTDOWN_MESSAGE } from "@/lib/shutdo
 import type { MapBounds, WazeAlert } from "@/types/waze";
 import { REPORT_TYPES, REPORT_TYPE_META, REPORT_PICKER } from "@/types/report";
 import type { ReportType, UserReport } from "@/types/report";
-import type { RouteData, RoutesResponse } from "@/types/route";
+import type { RouteData, RouteStep, RoutesResponse } from "@/types/route";
 import Image from "next/image";
 import posthog from "posthog-js";
 import { ShieldExclamationIcon, ExclamationTriangleIcon, NoSymbolIcon } from "@heroicons/react/24/solid";
@@ -495,6 +495,9 @@ function LiveHome() {
       // Small debounce to ensure user has actually deviated (not just GPS jitter)
       routeUpdateTimeoutRef.current = setTimeout(() => {
         console.log(`Off-route detected: ${Math.round(distanceToRoute)}m from route. Rerouting...`);
+        if (voiceAlerts) {
+          speakAlert("Rerouting");
+        }
         lastRerouteTimeRef.current = Date.now();
         lastRouteOriginRef.current = { lat: latitude, lng: longitude };
         fetchRoute(destination.lng, destination.lat, true);
@@ -510,7 +513,7 @@ function LiveHome() {
         clearTimeout(routeUpdateTimeoutRef.current);
       }
     };
-  }, [latitude, longitude, destination, route, fetchRoute, getDistanceToRoute]);
+  }, [latitude, longitude, destination, route, fetchRoute, getDistanceToRoute, voiceAlerts]);
 
   // Handle destination selection from search - preview and fetch routes
   const handleSelectDestination = useCallback((lng: number, lat: number, placeName: string) => {
@@ -560,7 +563,6 @@ function LiveHome() {
     }
   }, [latitude, longitude]);
 
-  // Clear destination
   const handleClearDestination = useCallback(() => {
     setDestination(null);
     setRoutes([]);
@@ -574,6 +576,109 @@ function LiveHome() {
       mapRef.current.recenter(longitude, latitude);
     }
   }, [latitude, longitude]);
+
+  // --- Turn-by-turn: track the next maneuver along the active route ---
+  const [navStep, setNavStep] = useState<{ index: number; step: RouteStep; distance: number } | null>(null);
+  const maneuverVertexIdxRef = useRef<number[]>([]);
+  const navAnnouncedRef = useRef<{ key: string; far: boolean; near: boolean }>({ key: "", far: false, near: false });
+  const navArrivedRef = useRef(false);
+
+  // Precompute each step's nearest route-vertex index when the active route changes
+  useEffect(() => {
+    navArrivedRef.current = false;
+    navAnnouncedRef.current = { key: "", far: false, near: false };
+    if (!route || !destination) {
+      maneuverVertexIdxRef.current = [];
+      setNavStep(null);
+      return;
+    }
+    const coords = route.geometry.coordinates;
+    maneuverVertexIdxRef.current = route.steps.map((st) => {
+      const ml = st.maneuver.location;
+      if (!ml) return 0;
+      let best = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < coords.length; i++) {
+        const d = (coords[i][0] - ml[0]) ** 2 + (coords[i][1] - ml[1]) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      }
+      return best;
+    });
+  }, [route, destination]);
+
+  // Advance the current step and fire voice callouts as maneuvers approach
+  useEffect(() => {
+    if (!destination || !route || !latitude || !longitude) {
+      setNavStep(null);
+      return;
+    }
+    const coords = route.geometry.coordinates;
+    if (coords.length === 0 || route.steps.length === 0) return;
+
+    // Nearest route vertex to the user
+    let ui = 0;
+    let ud = Infinity;
+    for (let i = 0; i < coords.length; i++) {
+      const d = (coords[i][0] - longitude) ** 2 + (coords[i][1] - latitude) ** 2;
+      if (d < ud) {
+        ud = d;
+        ui = i;
+      }
+    }
+    const vertIdx = maneuverVertexIdxRef.current;
+    let idx = vertIdx.findIndex((v) => v > ui);
+    if (idx === -1) idx = route.steps.length - 1; // at/past last maneuver: arrival step
+    const step = route.steps[idx];
+    const ml = step.maneuver.location;
+    if (!ml) {
+      setNavStep(null);
+      return;
+    }
+    const dist = getDistanceInMeters(latitude, longitude, ml[1], ml[0]);
+    setNavStep({ index: idx, step, distance: dist });
+
+    // Voice callouts: "in a quarter mile" once, then the bare instruction up close
+    const key = `${route.id}:${idx}`;
+    if (navAnnouncedRef.current.key !== key) {
+      navAnnouncedRef.current = { key, far: false, near: false };
+    }
+    const a = navAnnouncedRef.current;
+    const isArrive = step.maneuver.type === "arrive";
+    if (isArrive) {
+      if (dist < 40 && !navArrivedRef.current) {
+        navArrivedRef.current = true;
+        if (voiceAlerts) {
+          speakAlert("You have arrived");
+        }
+        posthog.capture("navigation_arrived", { place_name: destination.name });
+        setTimeout(() => handleClearDestination(), 8000);
+      } else if (dist < 400 && !a.near && !navArrivedRef.current) {
+        a.near = true;
+        if (voiceAlerts) {
+          speakAlert(`Your destination is ${milesPhrase(dist)}`);
+        }
+      }
+    } else if (!a.near && dist <= 80) {
+      a.near = true;
+      a.far = true;
+      if (voiceAlerts) {
+        speakAlert(step.instruction);
+      }
+    } else if (!a.far && dist < 400) {
+      a.far = true;
+      if (voiceAlerts) {
+        const instr = step.instruction.charAt(0).toLowerCase() + step.instruction.slice(1);
+        speakAlert(`In a quarter mile, ${instr}`);
+      }
+    }
+  }, [latitude, longitude, destination, route, voiceAlerts, getDistanceInMeters, handleClearDestination]);
+
+
+  // Clear destination
+
 
   // Handle long press on map
   const handleMapLongPress = useCallback(async (lng: number, lat: number, screenX: number, screenY: number) => {
@@ -605,6 +710,11 @@ function LiveHome() {
       setPreviewLocation({ lng: contextMenu.lng, lat: contextMenu.lat, name });
       setContextMenu(null);
       
+      // Fetch routes for the preview location (same as the search flow)
+      if (latitude && longitude) {
+        fetchRoute(contextMenu.lng, contextMenu.lat);
+      }
+      
       // Center map on the selected location
       if (mapRef.current) {
         mapRef.current.recenter(contextMenu.lng, contextMenu.lat);
@@ -615,7 +725,7 @@ function LiveHome() {
         coordinates: { lng: contextMenu.lng, lat: contextMenu.lat },
       });
     }
-  }, [contextMenu]);
+  }, [contextMenu, latitude, longitude, fetchRoute]);
 
   // Close context menu
   const handleCloseContextMenu = useCallback(() => {
@@ -1610,8 +1720,8 @@ function LiveHome() {
         );
       })()}
 
-      {/* Navigate Search + Destination Card (hidden - navigation in development) */}
-      <div className="absolute top-16 left-4 z-30 flex flex-col gap-3 hidden">
+      {/* Navigate Search + Destination Card */}
+      <div className="absolute top-16 left-4 z-30 flex flex-col gap-3">
         <NavigateSearch
           isDarkMode={effectiveDarkMode}
           onSelectDestination={handleSelectDestination}
@@ -2170,9 +2280,38 @@ function LiveHome() {
         </div>
       )}
 
+      {/* Turn-by-turn maneuver banner */}
+      {destination && navStep && !isSearchOpen && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+          <div className="bg-black/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl border border-white/20">
+            <div className="flex items-center gap-4">
+              <ManeuverIcon
+                type={navStep.step.maneuver.type}
+                modifier={navStep.step.maneuver.modifier}
+                className="w-10 h-10 flex-shrink-0"
+              />
+              <div className="flex flex-col">
+                <span className="text-2xl font-bold tracking-wide whitespace-nowrap">
+                  {navStep.step.maneuver.type === "arrive"
+                    ? navStep.distance < 40
+                      ? "You have arrived"
+                      : formatApproachDistance(navStep.distance)
+                    : formatApproachDistance(navStep.distance)}
+                </span>
+                <span className="text-sm text-gray-300 max-w-[420px] truncate">
+                  {navStep.step.maneuver.type === "arrive" && navStep.distance < 40
+                    ? destination.name
+                    : navStep.step.instruction}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Approach alert banner for hazards, crashes, closures, and traffic */}
       {approachAlert && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+        <div className={`absolute ${destination && navStep ? "top-28" : "top-4"} left-1/2 -translate-x-1/2 z-50 pointer-events-none`}>
           <div className="approach-alert-banner bg-black/90 backdrop-blur-md text-white px-8 py-4 rounded-2xl shadow-2xl border border-white/20">
             <div className="flex items-center gap-3">
               <ApproachAlertIcon type={approachAlert.type} className="w-9 h-9" />
@@ -2505,6 +2644,40 @@ function CloseNavIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function ManeuverIcon({ type, modifier, className }: { type: string; modifier?: string; className?: string }) {
+  const m = (modifier || "").toLowerCase();
+  let body;
+  if (type === "arrive") {
+    // flag
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M6 21V4m0 1h11l-2.5 3L17 11H6" />;
+  } else if (type === "depart" || type === "continue" || type === "notification") {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M12 21V3m0 0-6 6m6-6 6 6" />;
+  } else if (m.includes("uturn")) {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M7 21V10a5 5 0 0 1 10 0v6m0 0 3-3m-3 3-3-3" />;
+  } else if (m.includes("sharp left")) {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M20 21v-5a5 5 0 0 0-5-5H4m0 0 5-5m-5 5 5 5" />;
+  } else if (m.includes("sharp right")) {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M4 21v-5a5 5 0 0 1 5-5h11m0 0-5-5m5 5-5 5" />;
+  } else if (m.includes("slight left")) {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M20 21 8 9m0 0h7m-7 0v7" />;
+  } else if (m.includes("slight right")) {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M4 21 16 9m0 0h-7m7 0v7" />;
+  } else if (m.includes("left")) {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M20 21v-5a5 5 0 0 0-5-5H4m0 0 5-5m-5 5 5 5" />;
+  } else if (m.includes("right")) {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M4 21v-5a5 5 0 0 1 5-5h11m0 0-5-5m5 5-5 5" />;
+  } else if (type === "roundabout" || type === "rotary") {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-4m0 0a5 5 0 1 0-5-5m5 5-3-3m3 3 3-3" />;
+  } else {
+    body = <path strokeLinecap="round" strokeLinejoin="round" d="M12 21V3m0 0-6 6m6-6 6 6" />;
+  }
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      {body}
     </svg>
   );
 }

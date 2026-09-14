@@ -5,7 +5,7 @@ import posthog from "posthog-js";
 import { APP_VERSION } from "@/lib/version";
 
 // Bump this whenever a new release batch ships so the changelog shows again
-const CHANGELOG_VERSION = "1.3.0";
+const CHANGELOG_VERSION = "1.4.0";
 
 interface ChangelogModalProps {
   isDarkMode: boolean;
@@ -121,6 +121,12 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
                 September 2026
               </p>
               <div className="space-y-8 mt-6">
+                <div>
+                  <h4 className="text-xl font-medium mb-3">Turn-by-Turn Navigation</h4>
+                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Search a destination, pick a route, and Radar guides you: a banner with the next turn and its distance, voice callouts as you approach, and automatic rerouting when you wander off. Tap Navigate to start, X on the destination card to stop.
+                  </p>
+                </div>
                 <div>
                   <h4 className="text-xl font-medium mb-3">Clearer Police Reports</h4>
                   <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
