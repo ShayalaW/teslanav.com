@@ -13,7 +13,7 @@ export function proxy(request: NextRequest): NextResponse {
     return NextResponse.json(
       {
         error:
-          "TeslaNav is currently shut down. API access is temporarily disabled.",
+          "Radar is currently shut down. API access is temporarily disabled.",
       },
       {
         status: 503,

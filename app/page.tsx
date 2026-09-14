@@ -16,7 +16,6 @@ import type { MapBounds, WazeAlert } from "@/types/waze";
 import { REPORT_TYPES, REPORT_TYPE_META, REPORT_PICKER } from "@/types/report";
 import type { ReportType, UserReport } from "@/types/report";
 import type { RouteData, RouteStep, RoutesResponse } from "@/types/route";
-import Image from "next/image";
 import posthog from "posthog-js";
 import { ShieldExclamationIcon, ExclamationTriangleIcon, NoSymbolIcon } from "@heroicons/react/24/solid";
 import { ReportIcon, ApproachAlertIcon, TrafficLightIcon, SunIcon, MoonIcon, SatelliteIcon, CubeIcon, LayersIcon } from "@/components/icons";
@@ -229,8 +228,6 @@ function LiveHome() {
   // Preview location - shown on map when user searches but hasn't started navigation yet
   const [previewLocation, setPreviewLocation] = useState<{ lng: number; lat: number; name: string } | null>(null);
   // Mobile detection
-  const [isMobile, setIsMobile] = useState(false);
-  const [dismissedMobileWarning, setDismissedMobileWarning] = useState(false);
   
   // Police alert settings - use lazy init to read from localStorage immediately
   const [policeAlertDistance, setPoliceAlertDistance] = useState(() => {
@@ -837,28 +834,6 @@ function LiveHome() {
             mapRef.current.setFollowMode(true);
           }
         }, 100);
-      }
-    }
-  }, []);
-
-  // Detect mobile devices (but not Tesla browser)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const userAgent = navigator.userAgent.toLowerCase();
-      // Check if it's a Tesla browser (Tesla browsers identify themselves)
-      const isTeslaBrowser = userAgent.includes("tesla") || userAgent.includes("qtcarbrowser");
-      // Check if it's a mobile device
-      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-      // Also check screen width as a fallback
-      const isSmallScreen = window.innerWidth < 768;
-      
-      // Show warning if mobile and NOT Tesla browser
-      setIsMobile((isMobileDevice || isSmallScreen) && !isTeslaBrowser);
-      
-      // Check if user previously dismissed the warning
-      const dismissed = localStorage.getItem("teslanav-mobile-dismissed");
-      if (dismissed === "true") {
-        setDismissedMobileWarning(true);
       }
     }
   }, []);
@@ -1735,7 +1710,7 @@ function LiveHome() {
             className={`
               rounded-2xl backdrop-blur-xl overflow-hidden
               ${getContainerStyles(effectiveDarkMode)}
-              shadow-lg border max-w-[400px]
+              shadow-lg border w-[calc(100vw-2rem)] max-w-[400px]
             `}
           >
             {/* Location info */}
@@ -1806,7 +1781,7 @@ function LiveHome() {
             className={`
               rounded-2xl backdrop-blur-xl overflow-hidden
               ${getContainerStyles(effectiveDarkMode)}
-              shadow-lg border max-w-[360px]
+              shadow-lg border w-[calc(100vw-2rem)] max-w-[360px]
             `}
           >
             {/* Route info */}
@@ -2270,10 +2245,10 @@ function LiveHome() {
           
           {/* Pull-down notification at top */}
           <div className="absolute top-0 left-0 right-0 flex justify-center police-pulldown">
-            <div className="bg-black/90 backdrop-blur-md text-white px-12 py-6 rounded-b-3xl shadow-2xl border-b border-l border-r border-white/20">
-              <div className="flex items-center gap-4">
-                <PoliceAlertIcon className="w-12 h-12 police-icon" />
-                <span className="text-4xl font-bold tracking-wide">POLICE AHEAD</span>
+            <div className="bg-black/90 backdrop-blur-md text-white px-6 py-4 sm:px-12 sm:py-6 rounded-b-3xl shadow-2xl border-b border-l border-r border-white/20 max-w-[calc(100vw-2rem)]">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <PoliceAlertIcon className="w-8 h-8 sm:w-12 sm:h-12 police-icon" />
+                <span className="text-2xl sm:text-4xl font-bold tracking-wide whitespace-nowrap">POLICE AHEAD</span>
               </div>
             </div>
           </div>
@@ -2282,23 +2257,23 @@ function LiveHome() {
 
       {/* Turn-by-turn maneuver banner */}
       {destination && navStep && !isSearchOpen && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-          <div className="bg-black/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl border border-white/20">
-            <div className="flex items-center gap-4">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none w-[calc(100vw-2rem)] max-w-[560px] flex justify-center">
+          <div className="bg-black/90 backdrop-blur-md text-white px-4 sm:px-6 py-3 rounded-2xl shadow-2xl border border-white/20 max-w-full">
+            <div className="flex items-center gap-3 sm:gap-4">
               <ManeuverIcon
                 type={navStep.step.maneuver.type}
                 modifier={navStep.step.maneuver.modifier}
                 className="w-10 h-10 flex-shrink-0"
               />
               <div className="flex flex-col">
-                <span className="text-2xl font-bold tracking-wide whitespace-nowrap">
+                <span className="text-lg sm:text-2xl font-bold tracking-wide whitespace-nowrap">
                   {navStep.step.maneuver.type === "arrive"
                     ? navStep.distance < 40
                       ? "You have arrived"
                       : formatApproachDistance(navStep.distance)
                     : formatApproachDistance(navStep.distance)}
                 </span>
-                <span className="text-sm text-gray-300 max-w-[420px] truncate">
+                <span className="text-xs sm:text-sm text-gray-300 max-w-[calc(100vw-8rem)] sm:max-w-[420px] truncate">
                   {navStep.step.maneuver.type === "arrive" && navStep.distance < 40
                     ? destination.name
                     : navStep.step.instruction}
@@ -2312,11 +2287,11 @@ function LiveHome() {
       {/* Approach alert banner for hazards, crashes, closures, and traffic */}
       {approachAlert && (
         <div className={`absolute ${destination && navStep ? "top-28" : "top-4"} left-1/2 -translate-x-1/2 z-50 pointer-events-none`}>
-          <div className="approach-alert-banner bg-black/90 backdrop-blur-md text-white px-8 py-4 rounded-2xl shadow-2xl border border-white/20">
+          <div className="approach-alert-banner bg-black/90 backdrop-blur-md text-white px-5 py-3 sm:px-8 sm:py-4 rounded-2xl shadow-2xl border border-white/20 max-w-[calc(100vw-2rem)]">
             <div className="flex items-center gap-3">
-              <ApproachAlertIcon type={approachAlert.type} className="w-9 h-9" />
+              <ApproachAlertIcon type={approachAlert.type} className="w-7 h-7 sm:w-9 sm:h-9" />
               <div className="flex flex-col">
-                <span className="text-xl font-bold tracking-wide whitespace-nowrap">{approachAlert.label}</span>
+                <span className="text-base sm:text-xl font-bold tracking-wide whitespace-nowrap">{approachAlert.label}</span>
                 {latitude && longitude && (
                   <span className="text-sm text-gray-300">
                     {formatApproachDistance(getDistanceInMeters(latitude, longitude, approachAlert.lat, approachAlert.lng))}
@@ -2509,70 +2484,6 @@ function LiveHome() {
         }
       `}</style>
 
-      {/* Mobile Warning Overlay */}
-      {isMobile && !dismissedMobileWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
-          <div className="max-w-md w-full bg-[#1a1a1a] rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
-            {/* Preview image at top */}
-            <div className="relative w-full aspect-[16/9] overflow-hidden">
-              <Image
-                src="/upload.png"
-                alt="Radar Preview"
-                fill
-                className="object-cover"
-                priority
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent" />
-            </div>
-            
-            {/* Header text */}
-            <div className="relative px-6 pt-4 pb-6 text-center -mt-8">
-              <h2 className="text-xl font-semibold text-white mb-2">
-                Best on Desktop or Tesla
-              </h2>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Radar is designed for the Tesla in-car browser or desktop screens. The experience may be limited on mobile devices.
-              </p>
-            </div>
-
-            {/* Content */}
-            <div className="px-6 pb-6 space-y-4">
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-white/5">
-                <TeslaIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-white text-sm font-medium">Tesla Browser</p>
-                  <p className="text-gray-400 text-xs">Open radar-tesla.vercel.app in your Tesla&apos;s browser for the best experience</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-white/5">
-                <DesktopIcon className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-white text-sm font-medium">Desktop Browser</p>
-                  <p className="text-gray-400 text-xs">Full features available on Chrome, Safari, Firefox, or Edge</p>
-                </div>
-              </div>
-
-              {/* Buttons */}
-              <div className="flex flex-col gap-2 pt-2">
-                <button
-                  onClick={() => {
-                    setDismissedMobileWarning(true);
-                    localStorage.setItem("teslanav-mobile-dismissed", "true");
-                    posthog.capture("mobile_warning_dismissed", { action: "continue_anyway" });
-                  }}
-                  className="w-full py-3 rounded-xl bg-white/10 text-white font-medium hover:bg-white/20 transition-colors"
-                >
-                  Continue Anyway
-                </button>
-                <p className="text-center text-gray-500 text-xs">
-                  Some features may not work as expected
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
@@ -2730,21 +2641,7 @@ function LocationSearchIcon({ className }: { className?: string }) {
   );
 }
 
-function DesktopIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
-    </svg>
-  );
-}
 
-function TeslaIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 5.362l2.475-3.026s4.245.09 8.471 2.054c-1.082 1.636-3.231 2.438-3.231 2.438-.146-1.439-1.154-1.79-4.354-1.79L12 24 8.619 5.038c-3.18 0-4.188.351-4.335 1.79 0 0-2.148-.802-3.23-2.438C5.28 2.426 9.525 2.336 9.525 2.336L12 5.362z"/>
-    </svg>
-  );
-}
 
 function HelpIcon({ className }: { className?: string }) {
   return (

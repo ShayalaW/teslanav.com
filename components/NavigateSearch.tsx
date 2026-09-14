@@ -185,7 +185,7 @@ export function NavigateSearch({
           flex items-center gap-3 px-5 py-3 rounded-2xl backdrop-blur-xl
           ${dropdownStyles}
           shadow-xl border transition-all duration-200
-          min-w-[360px]
+          w-[calc(100vw-2rem)] max-w-[360px] sm:min-w-[360px]
         `}
       >
         <NavigateIcon className={`w-5 h-5 flex-shrink-0 ${isDarkMode ? "text-blue-400" : "text-blue-500"}`} />

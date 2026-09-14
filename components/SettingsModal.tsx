@@ -112,7 +112,7 @@ export function SettingsModal({
       {/* Modal */}
       <div 
         className={`
-          relative w-[80%] h-[80%] rounded-2xl overflow-hidden
+          relative w-full h-full sm:w-[80%] sm:h-[80%] sm:rounded-2xl overflow-hidden
           ${isDarkMode ? "bg-[#1a1a1a] text-white" : "bg-white text-black"}
           shadow-2xl flex flex-col
           transition-all duration-300 ease-out
@@ -122,10 +122,10 @@ export function SettingsModal({
       >
         {/* Header */}
         <div className={`
-          flex items-center justify-between px-6 py-5 border-b
+          flex items-center justify-between px-4 py-4 sm:px-6 sm:py-5 border-b
           ${isDarkMode ? "border-white/10" : "border-black/10"}
         `}>
-          <h2 className="text-2xl font-semibold">Settings</h2>
+          <h2 className="text-xl sm:text-2xl font-semibold">Settings</h2>
           <button
             onClick={() => {
               onClose();
@@ -144,7 +144,7 @@ export function SettingsModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="max-w-lg mx-auto space-y-8">
             {/* Appearance Section */}
             {!useSatellite && (

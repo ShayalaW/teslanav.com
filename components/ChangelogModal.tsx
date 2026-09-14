@@ -5,7 +5,7 @@ import posthog from "posthog-js";
 import { APP_VERSION } from "@/lib/version";
 
 // Bump this whenever a new release batch ships so the changelog shows again
-const CHANGELOG_VERSION = "1.4.0";
+const CHANGELOG_VERSION = "1.5.0";
 
 interface ChangelogModalProps {
   isDarkMode: boolean;
@@ -64,7 +64,7 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
   return (
     <div
       className={`
-        fixed inset-0 z-50 flex items-center justify-center p-6
+        fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6
         transition-opacity duration-300 ease-out
         ${isVisible ? "opacity-100" : "opacity-0"}
       `}
@@ -93,11 +93,11 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
         {/* Header */}
         <div
           className={`
-            flex items-center justify-between px-10 py-6 border-b
+            flex items-center justify-between px-5 py-4 sm:px-10 sm:py-6 border-b
             ${isDarkMode ? "border-white/10" : "border-black/10"}
           `}
         >
-          <h2 className="text-4xl font-semibold">What&apos;s New</h2>
+          <h2 className="text-2xl sm:text-4xl font-semibold">What&apos;s New</h2>
           <button
             onClick={handleClose}
             className={`
@@ -112,48 +112,54 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-10 py-8">
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-10 sm:py-8">
           <div className="space-y-10">
             {/* latest */}
             <div>
-              <h3 className="text-2xl font-semibold mb-1">Radar v{APP_VERSION}</h3>
+              <h3 className="text-xl sm:text-2xl font-semibold mb-1">Radar v{APP_VERSION}</h3>
               <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                 September 2026
               </p>
               <div className="space-y-8 mt-6">
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Turn-by-Turn Navigation</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Now on Your Phone</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Radar works on mobile. Search a destination, follow turn-by-turn guidance, and report what you see - all from your phone&apos;s browser, portrait or landscape.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Turn-by-Turn Navigation</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Search a destination, pick a route, and Radar guides you: a banner with the next turn and its distance, voice callouts as you approach, and automatic rerouting when you wander off. Tap Navigate to start, X on the destination card to stop.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Clearer Police Reports</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Clearer Police Reports</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Police reporting now separates what you actually see: &quot;Visible&quot; for a cop driving or just out on the road, &quot;Pulled over&quot; for a traffic stop, plus Hidden and Other side of road.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Speed Limit Display</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Speed Limit Display</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     The posted limit for the road you&apos;re on sits next to your speed, top left. Go over it and the limit chip flags red - quiet, never in your face.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Live Closures on the Road Ahead</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Live Closures on the Road Ahead</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Radar now checks the road in front of you for live closures and incidents and warns you with the same banner, chime, and voice callout as driver reports.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Recenter Button Is Back</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Recenter Button Is Back</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Pan away and a recenter button appears under the zoom controls, one tap snaps back to you. The speed limit chip sits beside your speed badge.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Sharper Alerts</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Sharper Alerts</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Your position now snaps to the road under the hood, which makes every distance countdown and approach alert more accurate.
                   </p>
                 </div>
@@ -162,38 +168,38 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
 
             {/* v1.1 */}
             <div>
-              <h3 className="text-2xl font-semibold mb-1">Radar v1.1</h3>
+              <h3 className="text-xl sm:text-2xl font-semibold mb-1">Radar v1.1</h3>
               <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                 September 2026
               </p>
               <div className="space-y-8 mt-6">
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Voice Callouts</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Voice Callouts</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Radar speaks alerts out loud - &quot;Police reported in 0.4 miles&quot; - so your eyes stay on the road. Toggle it in Settings.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Speed Camera Alerts</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Speed Camera Alerts</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Fixed speed and red-light cameras now trigger the same heads-up banner and chime as you approach them.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Hold to Re-Report</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Hold to Re-Report</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Press and hold the Report button to instantly drop another report of your last type - no menu, one motion.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Auto-Zoom</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Auto-Zoom</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     The map zooms in when you slow down and out when you speed up, just like the built-in Tesla nav.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xl font-medium mb-3">Awake &amp; Up to Date</h4>
-                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Awake &amp; Up to Date</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     Radar keeps the screen on while it&apos;s open, and updates itself the moment a new version ships - no refresh needed.
                   </p>
                 </div>
@@ -202,7 +208,7 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
 
             {/* Version Header */}
             <div>
-              <h3 className="text-2xl font-semibold mb-1">Radar v1.0</h3>
+              <h3 className="text-xl sm:text-2xl font-semibold mb-1">Radar v1.0</h3>
               <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                 September 2026
               </p>
@@ -211,29 +217,29 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
             {/* Changelog Items */}
             <div className="space-y-8">
               <div>
-                <h4 className="text-xl font-medium mb-3">Meet Radar</h4>
-                <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                <h4 className="text-lg sm:text-xl font-medium mb-3">Meet Radar</h4>
+                <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                   Real-time cop, hazard, and closure alerts from drivers on the road, right in your Tesla&apos;s browser. No app to install, nothing to sign up for.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Report in One Tap</h4>
-                <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                <h4 className="text-lg sm:text-xl font-medium mb-3">Report in One Tap</h4>
+                <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                   See something? Tap the red Report button and it drops at your exact spot - hidden cop, visible cop, hazard, crash, or closure. Every driver with Radar open sees it instantly.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Alerts That Stay Fresh</h4>
-                <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                <h4 className="text-lg sm:text-xl font-medium mb-3">Alerts That Stay Fresh</h4>
+                <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                   Stale reports fade away on their own. Drive past one and answer &quot;Still there?&quot; - a yes keeps it live, enough &quot;gone&quot; votes clear it for everyone.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-medium mb-3">Built for the Tesla Browser</h4>
-                <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                <h4 className="text-lg sm:text-xl font-medium mb-3">Built for the Tesla Browser</h4>
+                <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                   Big touch targets, high contrast, and a map-first layout made for glancing at a stoplight, not reading.
                 </p>
               </div>
