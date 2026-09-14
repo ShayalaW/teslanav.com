@@ -5,7 +5,7 @@ import posthog from "posthog-js";
 import { APP_VERSION } from "@/lib/version";
 
 // Bump this whenever a new release batch ships so the changelog shows again
-const CHANGELOG_VERSION = "1.2.0";
+const CHANGELOG_VERSION = "1.3.0";
 
 interface ChangelogModalProps {
   isDarkMode: boolean;
@@ -122,6 +122,12 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
               </p>
               <div className="space-y-8 mt-6">
                 <div>
+                  <h4 className="text-xl font-medium mb-3">Clearer Police Reports</h4>
+                  <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Police reporting now separates what you actually see: &quot;Visible&quot; for a cop driving or just out on the road, &quot;Pulled over&quot; for a traffic stop, plus Hidden and Other side of road.
+                  </p>
+                </div>
+                <div>
                   <h4 className="text-xl font-medium mb-3">Speed Limit Display</h4>
                   <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     The posted limit for the road you&apos;re on sits next to your speed, top left. Go over it and the limit chip flags red - quiet, never in your face.
@@ -136,7 +142,7 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
                 <div>
                   <h4 className="text-xl font-medium mb-3">Recenter Button Is Back</h4>
                   <p className={`text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
-                    Pan away and a recenter button appears under the zoom controls, one tap snaps back to you. The speed limit chip now stacks under the speed badge.
+                    Pan away and a recenter button appears under the zoom controls, one tap snaps back to you. The speed limit chip sits beside your speed badge.
                   </p>
                 </div>
                 <div>

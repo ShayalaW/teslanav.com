@@ -1,2 +1,2 @@
-// Single source of truth for the app version - bump with every release batch
-export const APP_VERSION = "1.2.2";
+// Single source of truth for the app version. Bump per shipped batch.
+export const APP_VERSION = "1.3.0";

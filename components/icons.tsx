@@ -97,6 +97,15 @@ export function PoliceIcon({ className }: IconProps) {
   );
 }
 
+export function EyeIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M2 12a12 12 0 0 1 20 0 12 12 0 0 1-20 0Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
 export function EyeOffIcon({ className }: IconProps) {
   return (
     <Svg className={className}>
@@ -234,6 +243,7 @@ export function PulseIcon({ className }: IconProps) {
 export function ReportIcon({ icon, className }: { icon: string; className?: string }) {
   switch (icon) {
     case "police": return <PoliceIcon className={className} />;
+    case "eye": return <EyeIcon className={className} />;
     case "eye-off": return <EyeOffIcon className={className} />;
     case "swap": return <SwapIcon className={className} />;
     case "traffic-light": return <TrafficLightIcon className={className} />;

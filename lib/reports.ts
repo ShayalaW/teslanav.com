@@ -12,7 +12,8 @@ const REPORTS_HASH = "radar:reports";
 // A "confirm" vote resets the clock from that moment.
 export const REPORT_TTL_MS: Record<ReportType, number> = {
   police_hidden: 90 * 60 * 1000, // 90 min - cops move on
-  police_visible: 60 * 60 * 1000, // 60 min - pulled-over clears fastest
+  police_visible: 45 * 60 * 1000, // 45 min - a cop driving around moves on
+  police_pulled_over: 60 * 60 * 1000, // 60 min - pulled-over clears fastest
   police_other_side: 60 * 60 * 1000, // 60 min
   vehicle_stopped: 60 * 60 * 1000, // 60 min - shoulder cars move or get towed
   traffic_slow: 30 * 60 * 1000, // 30 min - traffic clears fast

@@ -317,7 +317,9 @@ function LiveHome() {
         ? "POLICE_HIDDEN"
         : r.type === "police_visible"
           ? "POLICE_VISIBLE"
-          : r.type === "police_other_side"
+          : r.type === "police_pulled_over"
+            ? "PULLED_OVER"
+            : r.type === "police_other_side"
             ? "OTHER_SIDE"
             : r.type.startsWith("hazard_")
               ? r.type.replace("hazard_", "").toUpperCase()

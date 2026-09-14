@@ -1,6 +1,7 @@
 export type ReportType =
   | "police_hidden"
   | "police_visible"
+  | "police_pulled_over"
   | "police_other_side"
   | "vehicle_stopped"
   | "traffic_slow"
@@ -29,6 +30,7 @@ export interface UserReport {
 export const REPORT_TYPES: ReportType[] = [
   "police_hidden",
   "police_visible",
+  "police_pulled_over",
   "police_other_side",
   "vehicle_stopped",
   "traffic_slow",
@@ -45,7 +47,8 @@ export const REPORT_TYPES: ReportType[] = [
 
 export const REPORT_TYPE_META: Record<ReportType, { label: string; shortLabel: string }> = {
   police_hidden: { label: "Hidden cop", shortLabel: "Hidden" },
-  police_visible: { label: "Cop (pulled over / visible)", shortLabel: "Cop" },
+  police_visible: { label: "Cop (visible)", shortLabel: "Cop visible" },
+  police_pulled_over: { label: "Cop (pulled over)", shortLabel: "Pulled over" },
   police_other_side: { label: "Cop (other side)", shortLabel: "Other side" },
   vehicle_stopped: { label: "Car stopped on shoulder", shortLabel: "Car stopped" },
   traffic_slow: { label: "Slow traffic", shortLabel: "Slow" },
@@ -81,7 +84,8 @@ export const REPORT_PICKER: ReportPickerCategory[] = [
     label: "Police",
     icon: "police",
     children: [
-      { type: "police_visible", label: "Pulled over / visible", icon: "police" },
+      { type: "police_visible", label: "Visible", icon: "eye" },
+      { type: "police_pulled_over", label: "Pulled over", icon: "police" },
       { type: "police_hidden", label: "Hidden", icon: "eye-off" },
       { type: "police_other_side", label: "Other side of road", icon: "swap" },
     ],
