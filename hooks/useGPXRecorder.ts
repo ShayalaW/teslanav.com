@@ -12,7 +12,8 @@ import {
 } from "@/lib/gpx";
 
 const RECORDING_INTERVAL_MS = 1000; // Record every 1 second
-const SESSIONS_STORAGE_KEY = "teslanav-recordings";
+const SESSIONS_STORAGE_KEY = "radar-recordings";
+const LEGACY_SESSIONS_STORAGE_KEY = "teslanav-recordings";
 
 interface UseGPXRecorderOptions {
   /** Called when recording is saved successfully */
@@ -283,7 +284,15 @@ function getSavedSessions(): RecordingSession[] {
   if (typeof window === "undefined") return [];
   
   try {
-    const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    let stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    if (!stored) {
+      // Migrate legacy-prefixed recordings forward
+      stored = localStorage.getItem(LEGACY_SESSIONS_STORAGE_KEY);
+      if (stored) {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, stored);
+        localStorage.removeItem(LEGACY_SESSIONS_STORAGE_KEY);
+      }
+    }
     if (!stored) return [];
     
     const sessions: RecordingSession[] = JSON.parse(stored);

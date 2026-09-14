@@ -14,7 +14,7 @@ import {
 } from "@/lib/redis";
 
 // Simple admin auth - you can make this more secure
-const ADMIN_SECRET = process.env.ADMIN_SECRET || "teslanav-admin-2024";
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "radar-admin-2026";
 const INBOUND_API_KEY = process.env.INBOUND_API_KEY;
 const INBOUND_API_URL = "https://inbound.new/api/v2/emails";
 const ALERT_EMAIL = process.env.ALERT_EMAIL || "";
@@ -308,7 +308,7 @@ async function sendAlertEmail(
       
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
       <p style="color: #9ca3af; font-size: 12px;">
-        Sent from TeslaNav API Usage Monitor
+        Sent from Radar API Usage Monitor
       </p>
     </div>
   `;

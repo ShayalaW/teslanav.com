@@ -171,7 +171,8 @@ export function generateRecordingName(): string {
  * Stored in localStorage and used to filter recordings
  */
 export function getOrCreateSessionToken(): string {
-  const STORAGE_KEY = "teslanav-session-token";
+  const STORAGE_KEY = "radar-session-token";
+  const LEGACY_STORAGE_KEY = "teslanav-session-token";
   
   if (typeof window === "undefined") {
     return "server";
@@ -179,9 +180,14 @@ export function getOrCreateSessionToken(): string {
   
   let token = localStorage.getItem(STORAGE_KEY);
   if (!token) {
-    token = generateUUID();
-    localStorage.setItem(STORAGE_KEY, token);
+    // Migrate a legacy-prefixed token forward if one exists
+    token = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (token) localStorage.removeItem(LEGACY_STORAGE_KEY);
   }
+  if (!token) {
+    token = generateUUID();
+  }
+  localStorage.setItem(STORAGE_KEY, token);
   
   return token;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { storageGet, storageSet } from "@/lib/storage";
 import { Map, type MapRef } from "@/components/Map";
 import { SettingsModal } from "@/components/SettingsModal";
 import { ChangelogModal } from "@/components/ChangelogModal";
@@ -114,7 +115,7 @@ function LiveHome() {
   // This ensures the map initializes with the correct theme before first render
   const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
     if (typeof window !== "undefined") {
-      const savedTheme = localStorage.getItem("teslanav-theme");
+      const savedTheme = storageGet("theme");
       if (savedTheme === "light" || savedTheme === "dark" || savedTheme === "auto") {
         return savedTheme;
       }
@@ -127,14 +128,14 @@ function LiveHome() {
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setThemeModeState(mode);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-theme", mode);
+      storageSet("theme", mode);
     }
   }, []);
   const isDarkMode = themeMode === "auto" ? autoDark : themeMode === "dark";
   const [bounds, setBounds] = useState<MapBounds | null>(null);
   const [followMode, setFollowMode] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-follow-mode");
+      const saved = storageGet("follow-mode");
       return saved === null ? true : saved === "true"; // heading-up is the default
     }
     return false;
@@ -150,14 +151,14 @@ function LiveHome() {
   const [showSpeedCameras, setShowSpeedCameras] = useState(true);
   const [voiceAlerts, setVoiceAlerts] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-voice-alerts");
+      const saved = storageGet("voice-alerts");
       return saved === null ? true : saved === "true";
     }
     return true;
   });
   const [autoZoom, setAutoZoom] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-auto-zoom");
+      const saved = storageGet("auto-zoom");
       return saved === null ? true : saved === "true";
     }
     return true;
@@ -171,28 +172,28 @@ function LiveHome() {
   });
   const [showTraffic, setShowTraffic] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-traffic");
+      const saved = storageGet("traffic");
       return saved !== null ? saved === "true" : true;
     }
     return true;
   });
   const [useSatellite, setUseSatellite] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-satellite");
+      const saved = storageGet("satellite");
       return saved === "true";
     }
     return false;
   });
   const [use3DMode, setUse3DMode] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-3d-mode");
+      const saved = storageGet("3d-mode");
       return saved === "true";
     }
     return false;
   });
   const [showAvatarPulse, setShowAvatarPulse] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-avatar-pulse");
+      const saved = storageGet("avatar-pulse");
       return saved !== null ? saved === "true" : false; // off by default
     }
     return false;
@@ -232,14 +233,14 @@ function LiveHome() {
   // Police alert settings - use lazy init to read from localStorage immediately
   const [policeAlertDistance, setPoliceAlertDistance] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-police-distance");
+      const saved = storageGet("police-distance");
       return saved !== null ? parseInt(saved, 10) : 805;
     }
     return 805; // meters (~0.5 miles), 0 = off
   });
   const [policeAlertSound, setPoliceAlertSound] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("teslanav-police-sound");
+      const saved = storageGet("police-sound");
       return saved === null ? true : saved === "true";
     }
     return true; // on by default
@@ -827,7 +828,7 @@ function LiveHome() {
       alertAudioRef.current = new Audio("/alert-sound.mp3");
       
       // Apply saved follow mode to map when it's ready
-      const savedFollowMode = localStorage.getItem("teslanav-follow-mode");
+      const savedFollowMode = storageGet("follow-mode");
       if (savedFollowMode === "true") {
         setTimeout(() => {
           if (mapRef.current) {
@@ -850,7 +851,7 @@ function LiveHome() {
   const handleToggleSatellite = useCallback((value: boolean) => {
     setUseSatellite(value);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-satellite", value.toString());
+      storageSet("satellite", value.toString());
     }
   }, []);
 
@@ -858,21 +859,21 @@ function LiveHome() {
   const handleToggleVoiceAlerts = useCallback((value: boolean) => {
     setVoiceAlerts(value);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-voice-alerts", value.toString());
+      storageSet("voice-alerts", value.toString());
     }
   }, []);
 
   const handleToggleAutoZoom = useCallback((value: boolean) => {
     setAutoZoom(value);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-auto-zoom", value.toString());
+      storageSet("auto-zoom", value.toString());
     }
   }, []);
 
   const handleToggle3DMode = useCallback((value: boolean) => {
     setUse3DMode(value);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-3d-mode", value.toString());
+      storageSet("3d-mode", value.toString());
     }
     // Auto-enable follow mode when 3D is enabled for the best experience
     if (value && !followMode) {
@@ -881,7 +882,7 @@ function LiveHome() {
         mapRef.current.setFollowMode(true);
       }
       if (typeof window !== "undefined") {
-        localStorage.setItem("teslanav-follow-mode", "true");
+        storageSet("follow-mode", "true");
       }
     }
   }, [followMode]);
@@ -890,7 +891,7 @@ function LiveHome() {
   const handleToggleTraffic = useCallback((value: boolean) => {
     setShowTraffic(value);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-traffic", value.toString());
+      storageSet("traffic", value.toString());
     }
   }, []);
 
@@ -898,7 +899,7 @@ function LiveHome() {
   const handlePoliceAlertDistanceChange = useCallback((value: number) => {
     setPoliceAlertDistance(value);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-police-distance", value.toString());
+      storageSet("police-distance", value.toString());
     }
     // Clear alerted IDs when changing distance so alerts can re-trigger
     alertedPoliceIdsRef.current.clear();
@@ -908,7 +909,7 @@ function LiveHome() {
   const handleTogglePoliceAlertSound = useCallback((value: boolean) => {
     setPoliceAlertSound(value);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-police-sound", value.toString());
+      storageSet("police-sound", value.toString());
     }
   }, []);
 
@@ -1339,7 +1340,7 @@ function LiveHome() {
       const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
       const handler = (e: MediaQueryListEvent) => {
         // Only apply system preference if user hasn't explicitly set one
-        const savedTheme = localStorage.getItem("teslanav-theme");
+        const savedTheme = storageGet("theme");
         if (savedTheme === null) {
           setThemeModeState(e.matches ? "dark" : "light");
         }
@@ -1450,7 +1451,7 @@ function LiveHome() {
   const handleToggleAvatarPulse = useCallback((value: boolean) => {
     setShowAvatarPulse(value);
     if (typeof window !== "undefined") {
-      localStorage.setItem("teslanav-avatar-pulse", value.toString());
+      storageSet("avatar-pulse", value.toString());
     }
   }, []);
 
@@ -1470,7 +1471,7 @@ function LiveHome() {
 
       // Save to localStorage
       if (typeof window !== "undefined") {
-        localStorage.setItem("teslanav-follow-mode", newValue.toString());
+        storageSet("follow-mode", newValue.toString());
       }
 
       // Track follow mode toggle
@@ -1498,7 +1499,7 @@ function LiveHome() {
         setFollowMode(true);
         mapRef.current.setFollowMode(true);
         if (typeof window !== "undefined") {
-          localStorage.setItem("teslanav-follow-mode", "true");
+          storageSet("follow-mode", "true");
         }
       }
       posthog.capture("map_recentered", { latitude, longitude, follow_mode: true });
@@ -1696,7 +1697,7 @@ function LiveHome() {
       })()}
 
       {/* Navigate Search + Destination Card */}
-      <div className="absolute top-16 left-4 z-30 flex flex-col gap-3">
+      <div className="absolute top-16 left-4 z-30 flex flex-col gap-3 pl-[env(safe-area-inset-left)]">
         <NavigateSearch
           isDarkMode={effectiveDarkMode}
           onSelectDestination={handleSelectDestination}
@@ -1833,7 +1834,7 @@ function LiveHome() {
 
       {/* Speed Badge + Speed Limit - top left, plain blur (no styled tab) */}
       {speed != null && (
-        <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
+        <div className="absolute top-4 left-4 z-30 flex items-center gap-2 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)]">
           <div
             className="flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
             aria-label="Current speed"
@@ -1860,7 +1861,7 @@ function LiveHome() {
       )}
 
       {/* Top Right - Compass + Alert Summary (stacked) */}
-      <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-3">
+      <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-3 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)]">
         {/* Compass/Orientation Toggle */}
         <button
           onClick={handleCompassTap}
@@ -2010,7 +2011,7 @@ function LiveHome() {
       </div>
 
       {/* Bottom Left - Report (driver side) + Settings + Speed */}
-      <div className="absolute bottom-6 left-4 z-30 flex items-end gap-3">
+      <div className="absolute bottom-6 left-4 z-30 flex items-end gap-3 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
         {/* Report Button + Type Picker */}
         <div className="relative">
           {showReportPicker && (
@@ -2108,7 +2109,7 @@ function LiveHome() {
       </div>
 
       {/* Bottom Right - Control Buttons */}
-      <div className="absolute bottom-6 right-4 z-30 flex items-end gap-3">
+      <div className="absolute bottom-6 right-4 z-30 flex items-end gap-3 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]">
         {/* Dev Mode - Police Alert Test Button */}
         {isDevMode && (
           <button

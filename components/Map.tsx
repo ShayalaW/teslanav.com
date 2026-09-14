@@ -550,6 +550,8 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
       zoom,
       attributionControl: false,
       pitchWithRotate: use3DMode, // Allow pitch control in 3D mode
+      touchPitch: use3DMode, // Two-finger pitch drag only in 3D mode
+      clickTolerance: 5, // Slightly forgiving taps on touchscreens
       dragRotate: false, // Start with north up
       pitch: use3DMode ? 60 : 0, // Set initial pitch for 3D mode
       // Route tile requests through our caching proxy to reduce Mapbox costs
@@ -940,6 +942,13 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
   const use3DModeRef = useRef(use3DMode);
   useEffect(() => {
     use3DModeRef.current = use3DMode;
+    if (map.current) {
+      if (use3DMode) {
+        map.current.touchPitch.enable();
+      } else {
+        map.current.touchPitch.disable();
+      }
+    }
     use3DModePropRef.current = use3DMode;
   }, [use3DMode]);
 

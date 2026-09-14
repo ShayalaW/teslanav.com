@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect } from "react";
+import { storageGet, storageSet, storageRemove } from "@/lib/storage";
 
 interface DailyUsage {
   date: string;
@@ -54,7 +55,7 @@ export default function AdminPage() {
 
   // Check if we have a stored secret
   useEffect(() => {
-    const storedSecret = localStorage.getItem("teslanav-admin-secret");
+    const storedSecret = storageGet("admin-secret");
     if (storedSecret) {
       setSecret(storedSecret);
       fetchUsage(storedSecret);
@@ -75,7 +76,7 @@ export default function AdminPage() {
       if (response.status === 401) {
         setError("Invalid admin secret");
         setIsAuthenticated(false);
-        localStorage.removeItem("teslanav-admin-secret");
+        storageRemove("admin-secret");
         return;
       }
 
@@ -87,7 +88,7 @@ export default function AdminPage() {
       setData(usageData);
       setIsAuthenticated(true);
       setLastRefresh(new Date());
-      localStorage.setItem("teslanav-admin-secret", adminSecret);
+      storageSet("admin-secret", adminSecret);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -104,7 +105,7 @@ export default function AdminPage() {
     setIsAuthenticated(false);
     setData(null);
     setSecret("");
-    localStorage.removeItem("teslanav-admin-secret");
+    storageRemove("admin-secret");
   };
 
   const handleSyncUsage = async () => {
@@ -421,7 +422,7 @@ export default function AdminPage() {
             />
             <button
               onClick={() => {
-                localStorage.setItem("teslanav-notify-email", notifyEmail);
+                storageSet("notify-email", notifyEmail);
                 alert("Email saved! Alerts will be sent when thresholds are crossed.");
               }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"

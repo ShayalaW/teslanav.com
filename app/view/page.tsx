@@ -7,14 +7,23 @@ import { formatDuration, getOrCreateSessionToken } from "@/lib/gpx";
 import type { RecordingSession } from "@/types/gpx";
 import Link from "next/link";
 
-const SESSIONS_STORAGE_KEY = "teslanav-recordings";
+const SESSIONS_STORAGE_KEY = "radar-recordings";
+const LEGACY_SESSIONS_STORAGE_KEY = "teslanav-recordings";
 
 // Load sessions from localStorage (lazy initialization)
 function loadSessionsFromStorage(): RecordingSession[] {
   if (typeof window === "undefined") return [];
   
   try {
-    const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    let stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    if (!stored) {
+      // Migrate legacy-prefixed recordings forward
+      stored = localStorage.getItem(LEGACY_SESSIONS_STORAGE_KEY);
+      if (stored) {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, stored);
+        localStorage.removeItem(LEGACY_SESSIONS_STORAGE_KEY);
+      }
+    }
     if (stored) {
       const allSessions: RecordingSession[] = JSON.parse(stored);
       const sessionToken = getOrCreateSessionToken();

@@ -1,5 +1,5 @@
 /**
- * GPX (GPS Exchange Format) types for TeslaNav recording/playback
+ * GPX (GPS Exchange Format) types for Radar recording/playback
  */
 
 /** A single track point with location and metadata */
