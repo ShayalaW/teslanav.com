@@ -33,6 +33,7 @@ interface MapboxFeature {
     name?: string;
     full_address?: string;
     place_formatted?: string;
+    feature_type?: string;
   };
 }
 
@@ -66,6 +67,7 @@ async function mapboxGeocode(
     place_name: f.properties.full_address || f.properties.name || "",
     text: f.properties.name || (f.properties.full_address || "").split(",")[0],
     center: f.geometry.coordinates,
+    _featureType: f.properties.feature_type || "",
   }));
 }
 
@@ -202,15 +204,21 @@ export async function GET(request: NextRequest) {
       console.log("[Geocode] No proximity - returning unsorted results");
     }
 
-    // Fallback: LocationIQ is weak on exact house-number addresses.
-    // If the query looks like a street address (contains digits) and no
-    // LocationIQ result carries a matching house number, ask Mapbox and merge.
+    // LocationIQ is weak on exact house-number addresses and can even return
+    // a same-numbered address in the wrong state. For address-like queries
+    // (contains digits), always ask Mapbox too; an exact house-number address
+    // match outranks everything else, then results sort by distance.
     const queryDigits = query.match(/\d+/);
-    const hasHouseMatch = (Array.isArray(data) ? data : []).some(
-      (place) => queryDigits && place.address?.house_number === queryDigits[0]
-    );
-    if (queryDigits && !hasHouseMatch) {
-      console.log("[Geocode] No house-number match from LocationIQ - trying Mapbox fallback");
+    const liHasExactHouse = (Array.isArray(data) ? data : []).some((place) => {
+      if (!queryDigits || place.address?.house_number !== queryDigits[0]) return false;
+      // Guard against same-number-different-town matches: the query's town or
+      // state fragment should appear in the display name
+      const dn = place.display_name.toLowerCase();
+      const qParts = query.toLowerCase().replace(/[0-9]/g, " ").split(/[ ,]+/).filter(w => w.length > 2);
+      return qParts.some(w => dn.includes(w));
+    });
+    if (queryDigits && !liHasExactHouse) {
+      console.log("[Geocode] No exact house-number match from LocationIQ - trying Mapbox fallback");
       try {
         const mbFeatures = await mapboxGeocode(query, userLng, userLat);
         if (mbFeatures.length > 0) {
@@ -221,9 +229,10 @@ export async function GET(request: NextRequest) {
               : Infinity,
           }));
           const merged = [...features, ...withDistance];
-          if (userLat !== null && userLng !== null) {
-            merged.sort((a, b) => a._distance - b._distance);
-          }
+          // Exact house-number address results first, then by distance
+          const exactAddr = (f: { text: string; _featureType?: string } & Record<string, unknown>) =>
+            f._featureType === "address" && queryDigits && f.text.includes(queryDigits[0]) ? 0 : 1;
+          merged.sort((a, b) => exactAddr(a) - exactAddr(b) || a._distance - b._distance);
           // Dedupe by rounded coordinates (same place from both providers)
           const seen = new Set<string>();
           features = merged.filter((f) => {
@@ -240,7 +249,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Remove internal _distance field before returning
-    const cleanedFeatures = features.map(({ _distance, ...rest }) => rest);
+    const cleanedFeatures = features.map((f) => {
+      const { _distance, ...rest } = f as typeof f & { _featureType?: string };
+      delete (rest as Record<string, unknown>)._featureType;
+      return rest;
+    });
 
     return NextResponse.json({ features: cleanedFeatures });
   } catch (error) {
