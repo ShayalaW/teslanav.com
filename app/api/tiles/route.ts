@@ -12,6 +12,8 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 // Allowed Mapbox tile URL patterns (security - prevent proxying arbitrary URLs)
 const ALLOWED_PATTERNS = [
   /^https:\/\/api\.mapbox\.com\/v4\//,
+  /^https:\/\/api\.mapbox\.com\/raster\/v1\//,
+  /^https:\/\/api\.mapbox\.com\/3dtiles\/v1\//,
   /^https:\/\/api\.mapbox\.com\/styles\/v1\//,
   /^https:\/\/api\.mapbox\.com\/fonts\//,
   /^https:\/\/a\.tiles\.mapbox\.com\//,

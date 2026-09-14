@@ -122,6 +122,12 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
               </p>
               <div className="space-y-8 mt-6">
                 <div>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Real 3D Cities</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    3D mode now shows the real city: detailed buildings, landmarks, and natural lighting that shifts from day to night. Turn it on in Settings under Experimental.
+                  </p>
+                </div>
+                <div>
                   <h4 className="text-lg sm:text-xl font-medium mb-3">Better Touch Controls</h4>
                   <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     The map no longer tilts by accident when you drag with two fingers in 2D mode - pitching is reserved for 3D mode. Taps are more forgiving on touchscreens, and buttons stay clear of the notch and home bar on your phone.

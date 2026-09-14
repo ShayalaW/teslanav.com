@@ -197,6 +197,25 @@ function getNightOverlayOpacity(): number {
   }
 }
 
+const STANDARD_STYLE = "mapbox://styles/mapbox/standard";
+
+// Pick the base style: satellite wins, then Standard (native 3D buildings +
+// landmarks) for 3D mode, otherwise the classic dark/light styles.
+function getMapStyle(isDark: boolean, satellite: boolean, threeD: boolean): string {
+  if (satellite) return "mapbox://styles/mapbox/satellite-streets-v12";
+  if (threeD) return STANDARD_STYLE;
+  return isDark ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/light-v11";
+}
+
+// Standard style carries its own 3D buildings/landmarks and a lighting preset.
+// Apply dark/night lighting and keep POI/transit clutter off, matching the
+// classic-style setup. Throws on non-Standard styles - callers wrap in try.
+function applyStandardConfig(mapInstance: mapboxgl.Map, isDark: boolean) {
+  mapInstance.setConfigProperty("basemap", "lightPreset", isDark ? "night" : "day");
+  mapInstance.setConfigProperty("basemap", "showPointOfInterestLabels", false);
+  mapInstance.setConfigProperty("basemap", "showTransitLabels", false);
+}
+
 // Hide POI and place labels from the map
 function hidePlaceLabels(mapInstance: mapboxgl.Map) {
   const style = mapInstance.getStyle();
@@ -532,15 +551,8 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
     // Determine initial style
-    let initialStyle: string;
-    if (useSatellite) {
-      // Use standard satellite with streets overlay for better detail
-      initialStyle = "mapbox://styles/mapbox/satellite-streets-v12";
-    } else {
-      initialStyle = isDarkMode
-        ? "mapbox://styles/mapbox/dark-v11"
-        : "mapbox://styles/mapbox/light-v11";
-    }
+    const initialStyle = getMapStyle(isDarkMode, useSatellite, use3DMode);
+    isStandardStyleRef.current = initialStyle === STANDARD_STYLE;
 
     try {
       map.current = new mapboxgl.Map({
@@ -885,20 +897,26 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
 
   // Track initial style to avoid unnecessary setStyle calls
   const initialStyleRef = useRef<string | null>(null);
+  // Whether the active base style is Mapbox Standard (3D mode)
+  const isStandardStyleRef = useRef(false);
 
   // Update map style when dark mode or satellite mode changes
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
 
-    let currentStyle: string;
-    if (useSatellite) {
-      // Use standard satellite with streets overlay for better detail
-      currentStyle = "mapbox://styles/mapbox/satellite-streets-v12";
-    } else {
-      currentStyle = isDarkMode
-        ? "mapbox://styles/mapbox/dark-v11"
-        : "mapbox://styles/mapbox/light-v11";
-    }
+    const currentStyle = getMapStyle(isDarkMode, useSatellite, use3DMode);
+    isStandardStyleRef.current = currentStyle === STANDARD_STYLE;
+
+    const applyStyleCustomizations = (m: mapboxgl.Map) => {
+      hidePlaceLabels(m);
+      if (currentStyle === STANDARD_STYLE) {
+        try {
+          applyStandardConfig(m, isDarkMode);
+        } catch (e) {
+          console.log("Standard config not ready yet:", e);
+        }
+      }
+    };
 
     // Skip setStyle if this is the initial load and style hasn't changed
     // This prevents an unnecessary style reload that causes timing issues
@@ -906,11 +924,11 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
       initialStyleRef.current = currentStyle;
       // Initial style was set in the constructor, just hide labels
       if (map.current.isStyleLoaded()) {
-        hidePlaceLabels(map.current);
+        applyStyleCustomizations(map.current);
       } else {
         map.current.once("style.load", () => {
           if (map.current) {
-            hidePlaceLabels(map.current);
+            applyStyleCustomizations(map.current);
           }
         });
       }
@@ -921,15 +939,22 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     if (currentStyle !== initialStyleRef.current) {
       initialStyleRef.current = currentStyle;
       map.current.setStyle(currentStyle);
-      
+
       // Hide labels after style loads
       map.current.once("style.load", () => {
         if (map.current) {
-          hidePlaceLabels(map.current);
+          applyStyleCustomizations(map.current);
         }
       });
+    } else if (currentStyle === STANDARD_STYLE) {
+      // Style unchanged but dark mode may have flipped: update the light preset
+      try {
+        applyStandardConfig(map.current, isDarkMode);
+      } catch {
+        // Style not fully loaded yet; the style.load path will apply it
+      }
     }
-  }, [isDarkMode, mapLoaded, useSatellite]);
+  }, [isDarkMode, mapLoaded, useSatellite, use3DMode]);
 
   // Track showTraffic in a ref so style.load handler always has current value
   const showTrafficRef = useRef(showTraffic);
@@ -1124,9 +1149,10 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
           });
         }
         mapInstance.setTerrain({ source: "mapbox-dem", exaggeration: 1.5 });
-        
-        // Add 3D buildings layer
-        if (!mapInstance.getLayer("3d-buildings")) {
+
+        // Standard style renders its own realistic 3D buildings + landmarks;
+        // the manual fill-extrusion layer is only for the classic styles
+        if (!isStandardStyleRef.current && !mapInstance.getLayer("3d-buildings")) {
           // Find the first symbol layer to insert buildings below labels
           const layers = mapInstance.getStyle().layers;
           let labelLayerId: string | undefined;
@@ -1204,9 +1230,9 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
           });
         }
         mapInstance.setTerrain({ source: "mapbox-dem", exaggeration: 1.5 });
-        
-        // Add 3D buildings
-        if (!mapInstance.getLayer("3d-buildings")) {
+
+        // Standard style renders its own realistic 3D buildings + landmarks
+        if (!isStandardStyleRef.current && !mapInstance.getLayer("3d-buildings")) {
           const layers = mapInstance.getStyle().layers;
           let labelLayerId: string | undefined;
           for (const layer of layers) {
