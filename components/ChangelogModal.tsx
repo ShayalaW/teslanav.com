@@ -122,6 +122,12 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
               </p>
               <div className="space-y-8 mt-6">
                 <div>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Search Finds Every Address</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Searching an exact street address now always works - Radar checks a second address database when the first one can&apos;t find your house.
+                  </p>
+                </div>
+                <div>
                   <h4 className="text-lg sm:text-xl font-medium mb-3">Real 3D Cities</h4>
                   <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     3D mode now shows the real city: detailed buildings, landmarks, and natural lighting that shifts from day to night. Turn it on in Settings under Experimental.

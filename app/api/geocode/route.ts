@@ -23,6 +23,53 @@ interface LocationIQPlace {
   };
 }
 
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
+// Mapbox Geocoding v6 response shape (fields we use)
+interface MapboxFeature {
+  id: string;
+  geometry: { coordinates: [number, number] };
+  properties: {
+    name?: string;
+    full_address?: string;
+    place_formatted?: string;
+  };
+}
+
+/**
+ * Mapbox Geocoding fallback - much stronger on exact residential addresses
+ * (house numbers) than LocationIQ. 100K free requests/month.
+ */
+async function mapboxGeocode(
+  query: string,
+  userLng: number | null,
+  userLat: number | null
+): Promise<{ id: string; place_name: string; text: string; center: [number, number] }[]> {
+  if (!MAPBOX_TOKEN) return [];
+  const params = new URLSearchParams({
+    access_token: MAPBOX_TOKEN,
+    q: query,
+    country: "us",
+    limit: "5",
+    types: "address,place,locality,neighborhood,street,poi",
+  });
+  if (userLng !== null && userLat !== null) {
+    params.set("proximity", `${userLng},${userLat}`);
+  }
+  const response = await fetch(`https://api.mapbox.com/search/geocode/v6/forward?${params.toString()}`);
+  if (!response.ok) {
+    console.log("[Geocode] Mapbox fallback error:", response.status);
+    return [];
+  }
+  const data = await response.json();
+  return (data.features || []).map((f: MapboxFeature) => ({
+    id: f.id,
+    place_name: f.properties.full_address || f.properties.name || "",
+    text: f.properties.name || (f.properties.full_address || "").split(",")[0],
+    center: f.geometry.coordinates,
+  }));
+}
+
 /**
  * Calculate distance between two points using Haversine formula
  * Returns distance in kilometers
@@ -156,12 +203,58 @@ export async function GET(request: NextRequest) {
       console.log("[Geocode] No proximity - returning unsorted results");
     }
 
+    // Fallback: LocationIQ is weak on exact house-number addresses.
+    // If the query looks like a street address (contains digits) and no
+    // LocationIQ result carries a matching house number, ask Mapbox and merge.
+    const queryDigits = query.match(/\d+/);
+    const hasHouseMatch = (Array.isArray(data) ? data : []).some(
+      (place) => queryDigits && place.address?.house_number === queryDigits[0]
+    );
+    if (queryDigits && !hasHouseMatch) {
+      console.log("[Geocode] No house-number match from LocationIQ - trying Mapbox fallback");
+      try {
+        const mbFeatures = await mapboxGeocode(query, userLng, userLat);
+        if (mbFeatures.length > 0) {
+          const withDistance = mbFeatures.map((f) => ({
+            ...f,
+            _distance: userLat !== null && userLng !== null
+              ? getDistanceKm(userLat, userLng, f.center[1], f.center[0])
+              : Infinity,
+          }));
+          const merged = [...features, ...withDistance];
+          if (userLat !== null && userLng !== null) {
+            merged.sort((a, b) => a._distance - b._distance);
+          }
+          // Dedupe by rounded coordinates (same place from both providers)
+          const seen = new Set<string>();
+          features = merged.filter((f) => {
+            const key = `${f.center[0].toFixed(4)},${f.center[1].toFixed(4)}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }).slice(0, 5);
+          console.log("[Geocode] Merged results:", features.map(f => f.text));
+        }
+      } catch (e) {
+        console.log("[Geocode] Mapbox fallback failed:", e);
+      }
+    }
+
     // Remove internal _distance field before returning
     const cleanedFeatures = features.map(({ _distance, ...rest }) => rest);
 
     return NextResponse.json({ features: cleanedFeatures });
   } catch (error) {
     console.error("Geocoding error:", error);
+    // LocationIQ failed entirely (outage, rate limit) - try Mapbox directly
+    try {
+      const mbFeatures = await mapboxGeocode(query, userLng, userLat);
+      if (mbFeatures.length > 0) {
+        return NextResponse.json({ features: mbFeatures });
+      }
+    } catch (e) {
+      console.error("Mapbox fallback also failed:", e);
+    }
     return NextResponse.json(
       { error: "Geocoding request failed" },
       { status: 500 }
