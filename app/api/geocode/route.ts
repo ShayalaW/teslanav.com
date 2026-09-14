@@ -51,7 +51,6 @@ async function mapboxGeocode(
     q: query,
     country: "us",
     limit: "5",
-    types: "address,place,locality,neighborhood,street,poi",
   });
   if (userLng !== null && userLat !== null) {
     params.set("proximity", `${userLng},${userLat}`);
