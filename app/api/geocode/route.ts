@@ -207,17 +207,10 @@ export async function GET(request: NextRequest) {
     // LocationIQ is weak on exact house-number addresses and can even return
     // a same-numbered address in the wrong state. For address-like queries
     // (contains digits), always ask Mapbox too; an exact house-number address
-    // match outranks everything else, then results sort by distance.
+    // match outranks everything else, then results sort by distance from the
+    // user, which buries wrong-state street-name collisions.
     const queryDigits = query.match(/\d+/);
-    const liHasExactHouse = (Array.isArray(data) ? data : []).some((place) => {
-      if (!queryDigits || place.address?.house_number !== queryDigits[0]) return false;
-      // Guard against same-number-different-town matches: the query's town or
-      // state fragment should appear in the display name
-      const dn = place.display_name.toLowerCase();
-      const qParts = query.toLowerCase().replace(/[0-9]/g, " ").split(/[ ,]+/).filter(w => w.length > 2);
-      return qParts.some(w => dn.includes(w));
-    });
-    if (queryDigits && !liHasExactHouse) {
+    if (queryDigits) {
       console.log("[Geocode] No exact house-number match from LocationIQ - trying Mapbox fallback");
       try {
         const mbFeatures = await mapboxGeocode(query, userLng, userLat);
