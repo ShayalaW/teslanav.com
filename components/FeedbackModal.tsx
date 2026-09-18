@@ -55,19 +55,21 @@ export function FeedbackModal({ isOpen, onClose, isDarkMode }: FeedbackModalProp
     }
     setState("sending");
     try {
+      // FormData = CORS "simple request" (no preflight). A JSON content-type
+      // triggers an OPTIONS preflight that Web3Forms' edge answers with 403.
+      const form = new FormData();
+      form.append("access_key", WEB3FORMS_ACCESS_KEY);
+      form.append("subject", `[Radar feedback] v${APP_VERSION}`);
+      form.append("from_name", "Radar App");
+      form.append("message", message.trim());
+      form.append("contact", contact.trim() || "(none given)");
+      form.append("app_version", APP_VERSION);
+      form.append("user_agent", navigator.userAgent);
+      form.append("page_url", window.location.href);
       const res = await fetch("https://api.web3forms.com/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          access_key: WEB3FORMS_ACCESS_KEY,
-          subject: `[Radar feedback] v${APP_VERSION}`,
-          from_name: "Radar App",
-          message: message.trim(),
-          contact: contact.trim() || "(none given)",
-          app_version: APP_VERSION,
-          user_agent: navigator.userAgent,
-          page_url: window.location.href,
-        }),
+        headers: { Accept: "application/json" },
+        body: form,
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || "send failed");
