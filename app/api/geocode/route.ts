@@ -71,6 +71,74 @@ async function mapboxGeocode(
   }));
 }
 
+
+/**
+ * Mapbox Search Box API - the POI/brand search. Geocoding v6 forward does NOT
+ * index most store/chain POIs (searching "Restaurant Depot" there matches
+ * streets named Depot); Search Box is the API that has them. Suggest returns
+ * candidates without coordinates, so we retrieve the top few for geometry.
+ * Billed per session; one session_token groups the suggest + retrieves.
+ */
+interface SearchBoxSuggestion {
+  mapbox_id: string;
+  name: string;
+  full_address?: string;
+  place_formatted?: string;
+  feature_type?: string;
+}
+
+async function mapboxSearchBox(
+  query: string,
+  userLng: number | null,
+  userLat: number | null
+): Promise<{ id: string; place_name: string; text: string; center: [number, number]; _featureType: string }[]> {
+  if (!MAPBOX_TOKEN) return [];
+  const sessionToken = crypto.randomUUID();
+  const params = new URLSearchParams({
+    access_token: MAPBOX_TOKEN,
+    q: query,
+    country: "us",
+    limit: "8",
+    session_token: sessionToken,
+  });
+  if (userLng !== null && userLat !== null) {
+    params.set("proximity", `${userLng},${userLat}`);
+  }
+  const response = await fetch(`https://api.mapbox.com/search/searchbox/v1/suggest?${params.toString()}`);
+  if (!response.ok) {
+    console.log("[Geocode] Search Box suggest error:", response.status);
+    return [];
+  }
+  const data = await response.json();
+  const poiSuggestions = ((data.suggestions || []) as SearchBoxSuggestion[])
+    .filter((s) => s.feature_type === "poi" || s.feature_type === "brand")
+    .slice(0, 3);
+  // Suggest has no geometry - retrieve coordinates for the top POI matches
+  const retrieved = await Promise.all(
+    poiSuggestions.map(async (s) => {
+      try {
+        const r = await fetch(
+          `https://api.mapbox.com/search/searchbox/v1/retrieve/${s.mapbox_id}?session_token=${sessionToken}&access_token=${MAPBOX_TOKEN}`
+        );
+        if (!r.ok) return null;
+        const rd = await r.json();
+        const f = rd.features?.[0];
+        if (!f) return null;
+        return {
+          id: s.mapbox_id,
+          place_name: f.properties?.full_address || [s.name, s.place_formatted].filter(Boolean).join(", "),
+          text: s.name,
+          center: f.geometry.coordinates as [number, number],
+          _featureType: s.feature_type || "poi",
+        };
+      } catch {
+        return null;
+      }
+    })
+  );
+  return retrieved.filter((f): f is NonNullable<typeof f> => f !== null);
+}
+
 /**
  * Calculate distance between two points using Haversine formula
  * Returns distance in kilometers
@@ -204,41 +272,47 @@ export async function GET(request: NextRequest) {
       console.log("[Geocode] No proximity - returning unsorted results");
     }
 
-    // LocationIQ is weak on exact house-number addresses and can even return
-    // a same-numbered address in the wrong state. For address-like queries
-    // (contains digits), always ask Mapbox too; an exact house-number address
-    // match outranks everything else, then results sort by distance from the
-    // user, which buries wrong-state street-name collisions.
+    // Mapbox fills two LocationIQ gaps, biased to the user's GPS location:
+    // - Search Box (always): POI/brand names ("Restaurant Depot", "Wawa")
+    //   that LocationIQ misses or returns states away / overseas.
+    // - Geocoding v6 (digit queries): exact house-number addresses LocationIQ
+    //   is weak on. An exact house-number match outranks everything.
+    // Everything then sorts by distance from the user and dedupes by coords.
     const queryDigits = query.match(/\d+/);
-    if (queryDigits) {
-      console.log("[Geocode] No exact house-number match from LocationIQ - trying Mapbox fallback");
-      try {
-        const mbFeatures = await mapboxGeocode(query, userLng, userLat);
-        if (mbFeatures.length > 0) {
-          const withDistance = mbFeatures.map((f) => ({
-            ...f,
-            _distance: userLat !== null && userLng !== null
-              ? getDistanceKm(userLat, userLng, f.center[1], f.center[0])
-              : Infinity,
-          }));
-          const merged = [...features, ...withDistance];
-          // Exact house-number address results first, then by distance
-          const exactAddr = (f: { text: string; _featureType?: string } & Record<string, unknown>) =>
-            f._featureType === "address" && queryDigits && f.text.includes(queryDigits[0]) ? 0 : 1;
-          merged.sort((a, b) => exactAddr(a) - exactAddr(b) || a._distance - b._distance);
-          // Dedupe by rounded coordinates (same place from both providers)
-          const seen = new Set<string>();
-          features = merged.filter((f) => {
-            const key = `${f.center[0].toFixed(4)},${f.center[1].toFixed(4)}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          }).slice(0, 5);
-          console.log("[Geocode] Merged results:", features.map(f => f.text));
-        }
-      } catch (e) {
-        console.log("[Geocode] Mapbox fallback failed:", e);
-      }
+    const [poiFeatures, addrFeatures] = await Promise.all([
+      mapboxSearchBox(query, userLng, userLat).catch((e) => {
+        console.log("[Geocode] Search Box failed:", e);
+        return [] as Awaited<ReturnType<typeof mapboxSearchBox>>;
+      }),
+      queryDigits
+        ? mapboxGeocode(query, userLng, userLat).catch((e) => {
+            console.log("[Geocode] Mapbox v6 failed:", e);
+            return [] as Awaited<ReturnType<typeof mapboxGeocode>>;
+          })
+        : Promise.resolve([] as Awaited<ReturnType<typeof mapboxGeocode>>),
+    ]);
+    const mbFeatures = [...poiFeatures, ...addrFeatures];
+    if (mbFeatures.length > 0) {
+      const withDistance = mbFeatures.map((f) => ({
+        ...f,
+        _distance: userLat !== null && userLng !== null
+          ? getDistanceKm(userLat, userLng, f.center[1], f.center[0])
+          : Infinity,
+      }));
+      const merged = [...features, ...withDistance];
+      // Exact house-number address results first, then by distance
+      const exactAddr = (f: { text: string; _featureType?: string }) =>
+        f._featureType === "address" && queryDigits && f.text.includes(queryDigits[0]) ? 0 : 1;
+      merged.sort((a, b) => exactAddr(a) - exactAddr(b) || a._distance - b._distance);
+      // Dedupe by rounded coordinates (same place from two providers)
+      const seen = new Set<string>();
+      features = merged.filter((f) => {
+        const key = `${f.center[0].toFixed(4)},${f.center[1].toFixed(4)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 5);
+      console.log("[Geocode] Merged results:", features.map(f => f.text));
     }
 
     // Remove internal _distance field before returning
@@ -251,9 +325,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ features: cleanedFeatures });
   } catch (error) {
     console.error("Geocoding error:", error);
-    // LocationIQ failed entirely (outage, rate limit) - try Mapbox directly
+    // LocationIQ failed entirely (outage, rate limit) - serve Mapbox alone:
+    // Search Box for POIs, v6 for addresses, sorted by distance from user.
     try {
-      const mbFeatures = await mapboxGeocode(query, userLng, userLat);
+      const [poiFeatures, addrFeatures] = await Promise.all([
+        mapboxSearchBox(query, userLng, userLat).catch(() => []),
+        mapboxGeocode(query, userLng, userLat).catch(() => []),
+      ]);
+      const seen = new Set<string>();
+      const mbFeatures = [...poiFeatures, ...addrFeatures]
+        .map((f) => ({
+          ...f,
+          _distance: userLat !== null && userLng !== null
+            ? getDistanceKm(userLat, userLng, f.center[1], f.center[0])
+            : Infinity,
+        }))
+        .sort((a, b) => a._distance - b._distance)
+        .filter((f) => {
+          const key = `${f.center[0].toFixed(4)},${f.center[1].toFixed(4)}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0, 5)
+        .map((f) => {
+          const { _distance, ...rest } = f as typeof f & { _featureType?: string };
+          delete (rest as Record<string, unknown>)._featureType;
+          return rest;
+        });
       if (mbFeatures.length > 0) {
         return NextResponse.json({ features: mbFeatures });
       }
