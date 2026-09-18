@@ -134,6 +134,8 @@ function LiveHome() {
   }, []);
   const isDarkMode = themeMode === "auto" ? autoDark : themeMode === "dark";
   const [bounds, setBounds] = useState<MapBounds | null>(null);
+  // Tesla view toggle: heading-up (followMode) -> route overview -> north-up
+  const [overviewMode, setOverviewMode] = useState(false);
   const [followMode, setFollowMode] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = storageGet("follow-mode");
@@ -1452,11 +1454,13 @@ function LiveHome() {
   const isCenteredRef = useRef(isCentered);
   const previewLocationRef = useRef(previewLocation);
   const isSearchOpenRef = useRef(isSearchOpen);
+  const overviewModeRef = useRef(overviewMode);
   const positionRef = useRef<{ lat: number; lng: number } | null>(null);
   const autoRecenterTimerRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => { isCenteredRef.current = isCentered; }, [isCentered]);
   useEffect(() => { previewLocationRef.current = previewLocation; }, [previewLocation]);
   useEffect(() => { isSearchOpenRef.current = isSearchOpen; }, [isSearchOpen]);
+  useEffect(() => { overviewModeRef.current = overviewMode; }, [overviewMode]);
   useEffect(() => {
     if (latitude && longitude) positionRef.current = { lat: latitude, lng: longitude };
   }, [latitude, longitude]);
@@ -1471,6 +1475,7 @@ function LiveHome() {
         !isCenteredRef.current &&
         !previewLocationRef.current &&
         !isSearchOpenRef.current &&
+        !overviewModeRef.current &&
         pos &&
         mapRef.current
       ) {
@@ -1480,13 +1485,19 @@ function LiveHome() {
     }, 10000);
   }, []);
 
+  // Leave route overview when navigation ends
+  useEffect(() => {
+    if (overviewMode && (!route || !destination)) setOverviewMode(false);
+  }, [route, destination, overviewMode]);
+
   // Callback from Map when centering state changes (user pans away or recenters)
   const handleCenteredChange = useCallback((centered: boolean) => {
     setIsCentered(centered);
     if (centered) {
       if (autoRecenterTimerRef.current) clearTimeout(autoRecenterTimerRef.current);
-    } else {
+    } else if (!overviewModeRef.current) {
       // User panned/pinched away from the driver: start the 10s idle countdown
+      // (no countdown in route overview - panning there stays put, like Tesla)
       resetAutoRecenterTimer();
     }
   }, [resetAutoRecenterTimer]);
@@ -1527,9 +1538,10 @@ function LiveHome() {
     });
   }, []);
 
-  // Tesla-style compass: tap re-centers and re-engages tracking when panned away
+  // Tesla-style view toggle: tap cycles heading-up lock -> route overview ->
+  // north-up -> heading-up. When panned away, tap re-centers and re-engages tracking.
   const handleCompassTap = useCallback(() => {
-    if (!isCentered && latitude && longitude && mapRef.current) {
+    if (!isCentered && !overviewMode && latitude && longitude && mapRef.current) {
       mapRef.current.recenter(longitude, latitude);
       if (!followMode) {
         setFollowMode(true);
@@ -1541,8 +1553,28 @@ function LiveHome() {
       posthog.capture("map_recentered", { latitude, longitude, follow_mode: true });
       return;
     }
-    toggleFollowMode();
-  }, [isCentered, latitude, longitude, followMode, toggleFollowMode]);
+    if (followMode && !overviewMode) {
+      if (route) {
+        // heading-up -> route overview
+        setOverviewMode(true);
+        setFollowMode(false);
+        mapRef.current?.setFollowMode(false);
+        if (typeof window !== "undefined") {
+          storageSet("follow-mode", "false");
+        }
+        mapRef.current?.fitRouteOverview(route.geometry.coordinates);
+        posthog.capture("map_view_changed", { mode: "overview" });
+      } else {
+        toggleFollowMode(); // no route: heading-up -> north-up
+      }
+    } else if (overviewMode) {
+      // route overview -> north-up (stays zoomed out, tracking off)
+      setOverviewMode(false);
+      posthog.capture("map_view_changed", { mode: "north" });
+    } else {
+      toggleFollowMode(); // north-up -> heading-up
+    }
+  }, [isCentered, overviewMode, latitude, longitude, followMode, route, toggleFollowMode]);
 
   // Filter alerts to show only key types (if enabled)
   const filteredAlerts = showWazeAlerts
@@ -1808,64 +1840,11 @@ function LiveHome() {
         )}
         
         {/* Destination Card - Shows when navigating (hidden while search is open) */}
-        {destination && !isSearchOpen && (
-          <div
-            className={`
-              rounded-2xl backdrop-blur-xl overflow-hidden
-              ${getContainerStyles(effectiveDarkMode)}
-              shadow-lg border w-[calc(100vw-2rem)] max-w-[360px]
-            `}
-          >
-            {/* Route info */}
-            {route && (
-              <div className="flex items-center gap-4 px-4 py-3 border-b border-inherit">
-                <div className="flex items-center gap-2">
-                  <ClockIcon className={`w-5 h-5 text-[#e82127]`} />
-                  <span className="text-lg font-semibold">
-                    {formatDuration(route.duration)}
-                  </span>
-                </div>
-                <div className={`text-sm ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  {formatDistance(route.distance)}
-                </div>
-              </div>
-            )}
-            {routeLoading && (
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-inherit">
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-50" />
-                <span className={`text-sm ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  Calculating route...
-                </span>
-              </div>
-            )}
-            
-            {/* Destination info */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <NavigateToIcon className={`w-5 h-5 flex-shrink-0 text-[#e82127]`} />
-              <div className="flex-1 min-w-0">
-                <div className={`text-xs uppercase tracking-wider ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  Navigating to
-                </div>
-                <div className="text-sm font-medium truncate">{destination.name}</div>
-              </div>
-              <button
-                onClick={handleClearDestination}
-                className={`
-                  p-2 rounded-lg transition-colors
-                  ${effectiveDarkMode ? "hover:bg-white/10" : "hover:bg-black/5"}
-                `}
-                aria-label="Clear destination"
-              >
-                <CloseNavIcon className="w-5 h-5 opacity-60" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Speed Badge + Speed Limit - top left, plain blur (no styled tab) */}
       {speed != null && (
-        <div className={`absolute top-4 left-4 z-30 flex items-center gap-2 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+        <div className={`absolute ${destination && navStep && !overviewMode ? "top-[5.25rem]" : "top-4"} left-4 z-30 flex items-center gap-2 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
           <div
             className="flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
             aria-label="Current speed"
@@ -1901,7 +1880,7 @@ function LiveHome() {
             ${getButtonStyles(effectiveDarkMode)}
             shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
           `}
-          aria-label={!isCentered ? "Recenter and follow" : followMode ? "Lock north up" : "Follow heading"}
+          aria-label={overviewMode ? "Switch to north-up view" : !isCentered ? "Recenter and follow" : followMode ? (route ? "Show route overview" : "Lock north up") : "Follow heading"}
         >
           <div className="relative w-11 h-11">
             {/* Compass icon */}
@@ -1920,8 +1899,8 @@ function LiveHome() {
               <circle cx="12" cy="12" r="1.5" fill={compassCenterFill} stroke={compassCenterStroke} strokeWidth="0.5" />
             </svg>
             {/* Active indicator */}
-            {followMode && (
-              <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#e82127] rounded-full border-2 border-white" />
+            {(followMode || overviewMode) && (
+              <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 ${overviewMode ? "bg-blue-500" : "bg-[#e82127]"} rounded-full border-2 border-white`} />
             )}
           </div>
         </button>
@@ -2118,6 +2097,27 @@ function LiveHome() {
             <span className="text-base font-semibold">Report</span>
           </button>
         </div>
+        {/* Active navigation pill - compact readout next to Report (Tesla-style) */}
+        {destination && !isSearchOpen && (
+          <div className="flex items-center gap-2 h-16 px-4 rounded-xl backdrop-blur-xl bg-black/55 text-white border border-white/10 shadow-lg">
+            {routeLoading ? (
+              <div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin opacity-60" />
+            ) : route ? (
+              <span className="text-sm font-semibold whitespace-nowrap">
+                {new Date(Date.now() + route.duration * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {formatDuration(route.duration)} · {formatDistance(route.distance)}
+              </span>
+            ) : null}
+            <span className="text-xs text-gray-300 max-w-[140px] truncate">{destination.name}</span>
+            <button
+              onClick={handleClearDestination}
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              aria-label="Clear destination"
+            >
+              <CloseNavIcon className="w-4 h-4 opacity-60" />
+            </button>
+          </div>
+        )}
+
         {/* Settings Button - part of the idle-hidden chrome */}
         <button
           onClick={() => {
@@ -2255,38 +2255,86 @@ function LiveHome() {
         </div>
       )}
 
-      {/* Turn-by-turn maneuver banner */}
-      {destination && navStep && !isSearchOpen && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none w-[calc(100vw-2rem)] max-w-[560px] flex justify-center">
-          <div className="bg-black/90 backdrop-blur-md text-white px-4 sm:px-6 py-3 rounded-2xl shadow-2xl border border-white/20 max-w-full">
-            <div className="flex items-center gap-3 sm:gap-4">
+      {/* Turn-by-turn next-maneuver card - subdued, top-left (Tesla-style) */}
+      {destination && navStep && !isSearchOpen && !overviewMode && (
+        <div className="absolute top-4 left-4 z-30 pointer-events-none pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)]">
+          <div className="bg-black/55 backdrop-blur-md text-white px-4 py-2.5 rounded-xl max-w-[calc(100vw-2rem)]">
+            <div className="flex items-center gap-3">
               <ManeuverIcon
                 type={navStep.step.maneuver.type}
                 modifier={navStep.step.maneuver.modifier}
-                className="w-10 h-10 flex-shrink-0"
+                className="w-8 h-8 flex-shrink-0 opacity-90"
               />
               <div className="flex flex-col">
-                <span className="text-lg sm:text-2xl font-bold tracking-wide whitespace-nowrap">
+                <span className="text-base font-semibold tracking-wide whitespace-nowrap">
                   {navStep.step.maneuver.type === "arrive"
                     ? navStep.distance < 40
                       ? "You have arrived"
                       : formatApproachDistance(navStep.distance)
                     : formatApproachDistance(navStep.distance)}
                 </span>
-                <span className="text-xs sm:text-sm text-gray-300 max-w-[calc(100vw-8rem)] sm:max-w-[420px] truncate">
+                <span className="text-xs text-gray-400 max-w-[calc(100vw-10rem)] sm:max-w-[320px] truncate">
                   {navStep.step.maneuver.type === "arrive" && navStep.distance < 40
                     ? destination.name
                     : navStep.step.instruction}
                 </span>
               </div>
             </div>
+            {/* Next turn, collapsed second row like Tesla's turn list */}
+            {route && route.steps[navStep.index + 1] && (
+              <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-white/10">
+                <ManeuverIcon
+                  type={route.steps[navStep.index + 1].maneuver.type}
+                  modifier={route.steps[navStep.index + 1].maneuver.modifier}
+                  className="w-4 h-4 flex-shrink-0 opacity-70"
+                />
+                <span className="text-xs text-gray-400 truncate max-w-[calc(100vw-12rem)] sm:max-w-[280px]">
+                  {route.steps[navStep.index + 1].name || route.steps[navStep.index + 1].instruction}
+                </span>
+                <span className="text-xs text-gray-500 whitespace-nowrap ml-auto pl-2">
+                  {formatApproachDistance(route.steps[navStep.index + 1].distance)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Route overview: expanded turn-by-turn list down the left (Tesla-style) */}
+      {overviewMode && destination && route && (
+        <div
+          className={`absolute top-4 left-4 bottom-28 z-30 w-[280px] sm:w-[340px] overflow-y-auto rounded-2xl backdrop-blur-xl ${getContainerStyles(effectiveDarkMode)} shadow-lg border mt-[env(safe-area-inset-top)] ml-[env(safe-area-inset-left)]`}
+        >
+          <div className="flex flex-col py-2">
+            {route.steps.map((st, i) => {
+              const isCurrent = navStep ? i === navStep.index : i === 0;
+              const isPast = navStep ? i < navStep.index : false;
+              return (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 px-4 py-2.5 ${isCurrent ? (effectiveDarkMode ? "bg-white/10" : "bg-black/5") : ""} ${isPast ? "opacity-40" : ""}`}
+                >
+                  <ManeuverIcon
+                    type={st.maneuver.type}
+                    modifier={st.maneuver.modifier}
+                    className="w-6 h-6 flex-shrink-0"
+                  />
+                  <span className={`flex-1 text-sm truncate ${effectiveDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                    {st.name || st.instruction}
+                  </span>
+                  <span className={`text-xs whitespace-nowrap ${effectiveDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                    {formatApproachDistance(st.distance)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* Approach alert banner for hazards, crashes, closures, and traffic */}
       {approachAlert && (
-        <div className={`absolute ${destination && navStep ? "top-28" : "top-4"} left-1/2 -translate-x-1/2 z-50 pointer-events-none`}>
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
           <div className="approach-alert-banner bg-black/90 backdrop-blur-md text-white px-5 py-3 sm:px-8 sm:py-4 rounded-2xl shadow-2xl border border-white/20 max-w-[calc(100vw-2rem)]">
             <div className="flex items-center gap-3">
               <ApproachAlertIcon type={approachAlert.type} className="w-7 h-7 sm:w-9 sm:h-9" />

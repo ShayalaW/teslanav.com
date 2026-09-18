@@ -122,6 +122,18 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
               </p>
               <div className="space-y-8 mt-6">
                 <div>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Three Map Views, One Tap Away</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    The compass button now cycles the map views like the car does: heading-up follow (car parked in the lower third), a zoomed-out route overview with the full turn list down the left, and north-up. Turn directions sit in a quiet top-left card showing the next two turns, and the trip pill shows your arrival time.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Cleaner Navigation</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    Turn directions moved to a quiet card in the top-left corner, and the destination readout shrank to a small pill next to the Report button. More map, less banner.
+                  </p>
+                </div>
+                <div>
                   <h4 className="text-lg sm:text-xl font-medium mb-3">Feels Like Your Car Built It</h4>
                   <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     The map is the whole screen now. Buttons fade away while you drive and come back with a tap, the zoom buttons are gone (pinch still works), and a small chip in the corner always shows the street you&apos;re on. Pan around and Radar rejoins you after 10 seconds - just like the car&apos;s own nav.

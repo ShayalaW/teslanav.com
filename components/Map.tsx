@@ -51,6 +51,7 @@ interface MapProps {
 export interface MapRef {
   recenter: (lng: number, lat: number) => void;
   autoRecenter: (lng: number, lat: number) => void;
+  fitRouteOverview: (coordinates: [number, number][]) => void;
   enableAutoCentering: () => void;
   setFollowMode: (enabled: boolean) => void;
   resetNorth: () => void;
@@ -345,6 +346,9 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         map.current.dragRotate.disable();
         map.current.touchZoomRotate.disableRotation();
       }
+      // Tesla heading-up view parks the car in the lower third of the screen
+      const top = followMode ? Math.round(map.current.getContainer().clientHeight * 0.32) : 0;
+      map.current.easeTo({ padding: { top, right: 0, bottom: 0, left: 0 }, duration: 400 });
     }
   }, [followMode, mapLoaded]);
 
@@ -367,6 +371,22 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
       isAutoCentering.current = true;
       onCenteredChange?.(true);
       map.current?.easeTo({ center: [lng, lat], duration: 600, essential: true });
+    },
+    // Tesla-style route overview: whole route in view, north-up, room for the left turn list
+    fitRouteOverview: (coordinates: [number, number][]) => {
+      if (!map.current || coordinates.length < 2) return;
+      isAutoCentering.current = false;
+      onCenteredChange?.(false);
+      const bounds = coordinates.reduce(
+        (b, c) => b.extend(c as [number, number]),
+        new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
+      );
+      map.current.fitBounds(bounds, {
+        padding: { top: 70, right: 50, bottom: 130, left: 380 },
+        bearing: 0,
+        pitch: 0,
+        duration: 800,
+      });
     },
     enableAutoCentering: () => {
       // Just enable auto-centering without any animation
