@@ -11,7 +11,6 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { useWazeAlerts } from "@/hooks/useWazeAlerts";
 import { useReports } from "@/hooks/useReports";
 import { useSpeedCameras } from "@/hooks/useSpeedCameras";
-import { useSpeedLimit } from "@/hooks/useSpeedLimit";
 import { useReverseGeocode } from "@/hooks/useReverseGeocode";
 import { PROJECT_SHUTDOWN_ENABLED, PROJECT_SHUTDOWN_MESSAGE } from "@/lib/shutdown";
 import type { MapBounds, WazeAlert } from "@/types/waze";
@@ -136,6 +135,8 @@ function LiveHome() {
   const [bounds, setBounds] = useState<MapBounds | null>(null);
   // Tesla view toggle: heading-up (followMode) -> route overview -> north-up
   const [overviewMode, setOverviewMode] = useState(false);
+  // Full turn-list dropdown opened from the top-left turn card
+  const [turnListOpen, setTurnListOpen] = useState(false);
   const [followMode, setFollowMode] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = storageGet("follow-mode");
@@ -296,11 +297,9 @@ function LiveHome() {
   }, [themeMode, latitude, longitude]);
   // Simulated speed: ~25 m/s highway driving for testing, otherwise use real speed
   const speed = isSimulating ? 25 : realSpeed;
-  // Posted speed limit for the road being driven (map matching + tilequery)
-  const speedLimitMph = useSpeedLimit(latitude, longitude);
-  // Current street/town for the Tesla-style bottom-right chip
-  const { road: currentRoad, town: currentTown } = useReverseGeocode(latitude, longitude);
-  const currentStreet = [currentRoad, currentTown].filter(Boolean).join(", ");
+  // Current town for the Tesla-style bottom-right chip (town only, per driver feedback)
+  const { town: currentTown } = useReverseGeocode(latitude, longitude);
+  const currentStreet = currentTown;
   const { alerts: wazeAlerts, loading: alertsLoading, cachedTileBounds } = useWazeAlerts({ bounds });
   const { reports, submitReport, vote: voteReport, hasVoted, isOwn, removeReport } = useReports({ bounds });
 
@@ -1485,10 +1484,13 @@ function LiveHome() {
     }, 10000);
   }, []);
 
-  // Leave route overview when navigation ends
+  // Leave route overview / turn list when navigation ends
   useEffect(() => {
-    if (overviewMode && (!route || !destination)) setOverviewMode(false);
-  }, [route, destination, overviewMode]);
+    if (!route || !destination) {
+      if (overviewMode) setOverviewMode(false);
+      if (turnListOpen) setTurnListOpen(false);
+    }
+  }, [route, destination, overviewMode, turnListOpen]);
 
   // Callback from Map when centering state changes (user pans away or recenters)
   const handleCenteredChange = useCallback((centered: boolean) => {
@@ -1638,6 +1640,9 @@ function LiveHome() {
         if (!(e.target as HTMLElement).closest("[data-style-menu-root]")) {
           setStyleMenuOpen(false);
         }
+        if (!(e.target as HTMLElement).closest("[data-turn-ui]")) {
+          setTurnListOpen(false);
+        }
       }}
       onWheel={() => {
         if (!isCenteredRef.current) resetAutoRecenterTimer();
@@ -1756,7 +1761,8 @@ function LiveHome() {
 
       {/* Navigate Search + Destination Card */}
       <div className="absolute top-16 left-4 z-30 flex flex-col gap-3 pl-[env(safe-area-inset-left)]">
-        {/* Search trigger is idle-hidden chrome; stays up while search is open */}
+        {/* Search trigger: idle-hidden chrome, and fully hidden while navigating */}
+        {!destination && (
         <div
           className={`transition-opacity duration-300 ${controlsVisible || isSearchOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         >
@@ -1767,6 +1773,7 @@ function LiveHome() {
           userLocation={latitude && longitude ? { latitude, longitude } : null}
         />
         </div>
+        )}
 
         {/* Preview Card - Shows when a location is searched but not navigating yet */}
         {previewLocation && !destination && !isSearchOpen && (
@@ -1842,34 +1849,6 @@ function LiveHome() {
         {/* Destination Card - Shows when navigating (hidden while search is open) */}
       </div>
 
-      {/* Speed Badge + Speed Limit - top left, plain blur (no styled tab) */}
-      {speed != null && (
-        <div className={`absolute ${destination && navStep && !overviewMode ? "top-[5.25rem]" : "top-4"} left-4 z-30 flex items-center gap-2 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-          <div
-            className="flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
-            aria-label="Current speed"
-          >
-            <span className="text-2xl font-bold leading-none">{Math.round(speed * 2.23694)}</span>
-            <span className="text-[10px] uppercase tracking-wider text-white/60">
-              mph
-            </span>
-          </div>
-          {speedLimitMph != null && (
-            <div
-              className={`w-10 h-12 rounded-lg flex flex-col items-center justify-center text-lg font-bold leading-none border-2 transition-colors ${
-                speed * 2.23694 > speedLimitMph + 1
-                  ? "bg-[#e82127] border-[#e82127] text-white animate-pulse"
-                  : "bg-white/90 border-black/60 text-black"
-              }`}
-              aria-label={`Speed limit ${speedLimitMph} mph`}
-            >
-              <span className="text-[7px] font-semibold uppercase tracking-tight opacity-70">Limit</span>
-              {speedLimitMph}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Top Right - Compass + Alert Summary (stacked) */}
       <div className={`absolute top-4 right-4 z-30 flex flex-col items-end gap-3 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
         {/* Compass/Orientation Toggle */}
@@ -1883,21 +1862,28 @@ function LiveHome() {
           aria-label={overviewMode ? "Switch to north-up view" : !isCentered ? "Recenter and follow" : followMode ? (route ? "Show route overview" : "Lock north up") : "Follow heading"}
         >
           <div className="relative w-11 h-11">
-            {/* Compass icon */}
-            <svg viewBox="0 0 24 24" className="w-full h-full">
-              {/* Outer circle */}
-              <circle cx="12" cy="12" r="10" fill="none" stroke={compassCircleColor} strokeWidth="1" />
-              {/* N marker */}
-              <text x="12" y="5" textAnchor="middle" fontSize="5" fill="#f59e0b" fontWeight="bold">N</text>
-              {/* Arrow/needle */}
-              <path
-                d="M12 6 L14 12 L12 18 L10 12 Z"
-                fill={compassNeedleColor}
-                className="transition-colors duration-200"
-              />
-              {/* Center dot */}
-              <circle cx="12" cy="12" r="1.5" fill={compassCenterFill} stroke={compassCenterStroke} strokeWidth="0.5" />
-            </svg>
+            {/* Distinct icon per view mode (Tesla-style glanceability) */}
+            {overviewMode ? (
+              /* Route overview: route-line glyph */
+              <svg viewBox="0 0 24 24" className="w-full h-full" fill="none" stroke={compassNeedleColor} strokeWidth="2" strokeLinecap="round">
+                <path d="M6 19 C 6 12, 18 12, 18 5" />
+                <circle cx="6" cy="19" r="2.2" fill={compassNeedleColor} stroke="none" />
+                <circle cx="18" cy="5" r="2.2" fill="#3b82f6" stroke="none" />
+              </svg>
+            ) : followMode ? (
+              /* Heading-up lock: needle locked straight up */
+              <svg viewBox="0 0 24 24" className="w-full h-full">
+                <circle cx="12" cy="12" r="10" fill="none" stroke={compassCircleColor} strokeWidth="1" />
+                <path d="M12 4 L15 13 L12 11 L9 13 Z" fill={compassNeedleColor} />
+                <path d="M9 13 L12 11 L15 13 L12 19 Z" fill={compassCircleColor} opacity="0.35" />
+              </svg>
+            ) : (
+              /* North-up: prominent N, needle at rest */
+              <svg viewBox="0 0 24 24" className="w-full h-full">
+                <circle cx="12" cy="12" r="10" fill="none" stroke={compassCircleColor} strokeWidth="1" />
+                <text x="12" y="15.5" textAnchor="middle" fontSize="11" fill={compassNeedleColor} fontWeight="bold">N</text>
+              </svg>
+            )}
             {/* Active indicator */}
             {(followMode || overviewMode) && (
               <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 ${overviewMode ? "bg-blue-500" : "bg-[#e82127]"} rounded-full border-2 border-white`} />
@@ -2099,7 +2085,12 @@ function LiveHome() {
         </div>
         {/* Active navigation pill - compact readout next to Report (Tesla-style) */}
         {destination && !isSearchOpen && (
-          <div className="flex items-center gap-2 h-16 px-4 rounded-xl backdrop-blur-xl bg-black/55 text-white border border-white/10 shadow-lg">
+          <div
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-2 h-16 px-4 rounded-xl backdrop-blur-xl bg-black/55 text-white border border-white/10 shadow-lg cursor-pointer hover:bg-black/70 transition-colors"
+            role="button"
+            aria-label="Open navigation settings"
+          >
             {routeLoading ? (
               <div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin opacity-60" />
             ) : route ? (
@@ -2109,7 +2100,10 @@ function LiveHome() {
             ) : null}
             <span className="text-xs text-gray-300 max-w-[140px] truncate">{destination.name}</span>
             <button
-              onClick={handleClearDestination}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClearDestination();
+              }}
               className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
               aria-label="Clear destination"
             >
@@ -2258,7 +2252,13 @@ function LiveHome() {
       {/* Turn-by-turn next-maneuver card - subdued, top-left (Tesla-style) */}
       {destination && navStep && !isSearchOpen && !overviewMode && (
         <div className="absolute top-4 left-4 z-30 pointer-events-none pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)]">
-          <div className="bg-black/55 backdrop-blur-md text-white px-4 py-2.5 rounded-xl max-w-[calc(100vw-2rem)]">
+          <div
+            data-turn-ui
+            onClick={() => setTurnListOpen((v) => !v)}
+            className="bg-black/55 backdrop-blur-md text-white px-4 py-2.5 rounded-xl max-w-[calc(100vw-2rem)] pointer-events-auto cursor-pointer hover:bg-black/65 transition-colors"
+            role="button"
+            aria-label="Show all turns"
+          >
             <div className="flex items-center gap-3">
               <ManeuverIcon
                 type={navStep.step.maneuver.type}
@@ -2301,10 +2301,22 @@ function LiveHome() {
       )}
 
       {/* Route overview: expanded turn-by-turn list down the left (Tesla-style) */}
-      {overviewMode && destination && route && (
+      {(overviewMode || turnListOpen) && destination && route && (
         <div
+          data-turn-ui
           className={`absolute top-4 left-4 bottom-28 z-30 w-[280px] sm:w-[340px] overflow-y-auto rounded-2xl backdrop-blur-xl ${getContainerStyles(effectiveDarkMode)} shadow-lg border mt-[env(safe-area-inset-top)] ml-[env(safe-area-inset-left)]`}
         >
+          {/* Alternate routes with ETA chips (Tesla overview-style picker) */}
+          {routes.length > 1 && (
+            <div className="px-3 py-2 border-b border-inherit">
+              <RouteSelector
+                routes={routes}
+                selectedIndex={selectedRouteIndex}
+                onSelectRoute={setSelectedRouteIndex}
+                isDarkMode={effectiveDarkMode}
+              />
+            </div>
+          )}
           <div className="flex flex-col py-2">
             {route.steps.map((st, i) => {
               const isCurrent = navStep ? i === navStep.index : i === 0;

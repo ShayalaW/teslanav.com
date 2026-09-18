@@ -122,6 +122,12 @@ export function ChangelogModal({ isDarkMode, externalOpen, onExternalClose }: Ch
               </p>
               <div className="space-y-8 mt-6">
                 <div>
+                  <h4 className="text-lg sm:text-xl font-medium mb-3">Tuned to the Drive</h4>
+                  <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                    The corner chip now shows just the town you&apos;re in. The speed badge is gone - your car already shows it. While navigating, the trip pill is your control: tap it for settings, tap the turn card for the full step list, and in route overview you can pick between alternate routes. The compass icon shows which map view you&apos;re in at a glance.
+                  </p>
+                </div>
+                <div>
                   <h4 className="text-lg sm:text-xl font-medium mb-3">Three Map Views, One Tap Away</h4>
                   <p className={`text-base sm:text-lg leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
                     The compass button now cycles the map views like the car does: heading-up follow (car parked in the lower third), a zoomed-out route overview with the full turn list down the left, and north-up. Turn directions sit in a quiet top-left card showing the next two turns, and the trip pill shows your arrival time.
