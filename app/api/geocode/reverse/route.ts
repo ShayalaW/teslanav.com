@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
     // Check cache first
     const cached = await redis.get<string>(cacheKey);
     if (cached) {
-      return NextResponse.json({ ...JSON.parse(cached), cached: true });
+      // Upstash auto-deserializes on read, so cached may already be an object
+      const payload = typeof cached === "string" ? JSON.parse(cached) : cached;
+      return NextResponse.json({ ...payload, cached: true });
     }
 
     // Not cached - fetch from LocationIQ
