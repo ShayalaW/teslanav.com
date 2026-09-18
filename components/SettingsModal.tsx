@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SunIcon, MoonIcon, AutoThemeIcon, SatelliteIcon, CameraIcon, SpeakerIcon, PulseIcon, CubeIcon, ZoomIcon } from "./icons";
 import { APP_VERSION } from "@/lib/version";
+import { FeedbackModal } from "./FeedbackModal";
 import posthog from "posthog-js";
 import { ShieldExclamationIcon, MapIcon } from "@heroicons/react/24/solid";
 
@@ -69,6 +70,7 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -538,6 +540,12 @@ export function SettingsModal({
                 ${isDarkMode ? "bg-white/5" : "bg-black/5"}
               `}>
                 <button
+                  onClick={() => setFeedbackOpen(true)}
+                  className="mb-3 w-full py-3 rounded-xl bg-blue-500 text-white text-base font-medium hover:bg-blue-600 transition-colors"
+                >
+                  Report a Bug / Feature Idea
+                </button>
+                <button
                   onClick={onOpenChangelog}
                   className={`mb-3 text-base font-medium underline underline-offset-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
                 >
@@ -559,6 +567,11 @@ export function SettingsModal({
           </div>
         </div>
       </div>
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 }
