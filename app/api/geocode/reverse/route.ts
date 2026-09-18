@@ -10,7 +10,8 @@ const CACHE_TTL = 86400; // 24 hours in seconds
 function getCacheKey(lng: number, lat: number): string {
   const roundedLng = Math.round(lng * 100) / 100;
   const roundedLat = Math.round(lat * 100) / 100;
-  return `geocode:reverse:${roundedLat},${roundedLng}`;
+  // v2: payload now includes road/town components alongside placeName
+  return `geocode:reverse:v2:${roundedLat},${roundedLng}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Check cache first
     const cached = await redis.get<string>(cacheKey);
     if (cached) {
-      return NextResponse.json({ placeName: cached, cached: true });
+      return NextResponse.json({ ...JSON.parse(cached), cached: true });
     }
 
     // Not cached - fetch from LocationIQ
@@ -73,10 +74,18 @@ export async function GET(request: NextRequest) {
                       [addr.road, addr.city || addr.town || addr.village, addr.state].filter(Boolean).join(", ") ||
                       `${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`;
 
-    // Cache the result
-    await redis.set(cacheKey, placeName, { ex: CACHE_TTL });
+    // Structured components for the current-street chip (Tesla-style).
+    // House number intentionally excluded from the chip.
+    const road: string | null =
+      addr.road || addr.pedestrian || addr.footway || addr.path || null;
+    const town: string | null =
+      addr.city || addr.town || addr.village || addr.hamlet || addr.county || null;
+    const payload = { placeName, road, town };
 
-    return NextResponse.json({ placeName });
+    // Cache the result
+    await redis.set(cacheKey, JSON.stringify(payload), { ex: CACHE_TTL });
+
+    return NextResponse.json(payload);
   } catch (error) {
     console.error("Reverse geocoding error:", error);
     return NextResponse.json(

@@ -6,15 +6,18 @@ interface ReverseGeocodeResult {
   placeName: string | null;
   neighborhood: string | null;
   locality: string | null;
+  road: string | null;
+  town: string | null;
   loading: boolean;
   error: string | null;
 }
 
-// Minimum time between API calls (30 seconds)
-const MIN_FETCH_INTERVAL_MS = 30000;
+// Minimum time between API calls (10 seconds keeps the current-street
+// chip fresh while driving without hammering the quota)
+const MIN_FETCH_INTERVAL_MS = 10000;
 
 // In-memory cache for the session (survives re-renders but not page refresh)
-const locationCache = new Map<string, { placeName: string; neighborhood: string | null; locality: string | null }>();
+const locationCache = new Map<string, { placeName: string; neighborhood: string | null; locality: string | null; road: string | null; town: string | null }>();
 
 export function useReverseGeocode(
   latitude: number | null,
@@ -23,6 +26,8 @@ export function useReverseGeocode(
   const [placeName, setPlaceName] = useState<string | null>(null);
   const [neighborhood, setNeighborhood] = useState<string | null>(null);
   const [locality, setLocality] = useState<string | null>(null);
+  const [road, setRoad] = useState<string | null>(null);
+  const [town, setTown] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -33,10 +38,10 @@ export function useReverseGeocode(
   useEffect(() => {
     if (!latitude || !longitude) return;
 
-    // Round to 2 decimal places (~1.1km grid) to reduce API calls
-    // This means we only fetch a new location name every ~1km of movement
-    const roundedLat = Math.round(latitude * 100) / 100;
-    const roundedLng = Math.round(longitude * 100) / 100;
+    // Round to 3 decimal places (~110m grid). Street names change within
+    // blocks, so the current-street chip needs finer resolution than 1km.
+    const roundedLat = Math.round(latitude * 1000) / 1000;
+    const roundedLng = Math.round(longitude * 1000) / 1000;
     const coordKey = `${roundedLat},${roundedLng}`;
 
     // Skip if we already fetched for these coords (or close enough)
@@ -49,10 +54,12 @@ export function useReverseGeocode(
       setPlaceName(cached.placeName);
       setNeighborhood(cached.neighborhood);
       setLocality(cached.locality);
+      setRoad(cached.road);
+      setTown(cached.town);
       return;
     }
 
-    // Time-based throttle: don't fetch more than once per 30 seconds
+    // Time-based throttle: don't fetch more than once per 10 seconds
     const now = Date.now();
     if (now - lastFetchTime.current < MIN_FETCH_INTERVAL_MS) {
       return;
@@ -90,6 +97,8 @@ export function useReverseGeocode(
         setNeighborhood(neighborhoodName);
         setLocality(localityName);
         setPlaceName(displayName);
+        setRoad(data.road || null);
+        setTown(data.town || null);
 
         // Cache in memory for this session
         if (displayName) {
@@ -97,6 +106,8 @@ export function useReverseGeocode(
             placeName: displayName,
             neighborhood: neighborhoodName,
             locality: localityName,
+            road: data.road || null,
+            town: data.town || null,
           });
         }
       } catch (err) {
@@ -109,6 +120,6 @@ export function useReverseGeocode(
     fetchPlaceName();
   }, [latitude, longitude]);
 
-  return { placeName, neighborhood, locality, loading, error };
+  return { placeName, neighborhood, locality, road, town, loading, error };
 }
 

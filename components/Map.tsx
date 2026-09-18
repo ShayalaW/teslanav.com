@@ -50,6 +50,7 @@ interface MapProps {
 
 export interface MapRef {
   recenter: (lng: number, lat: number) => void;
+  autoRecenter: (lng: number, lat: number) => void;
   enableAutoCentering: () => void;
   setFollowMode: (enabled: boolean) => void;
   resetNorth: () => void;
@@ -360,6 +361,12 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         duration: 800,
         essential: true,
       });
+    },
+    // Idle auto-recenter: rejoin the driver WITHOUT resetting zoom (Tesla behavior)
+    autoRecenter: (lng: number, lat: number) => {
+      isAutoCentering.current = true;
+      onCenteredChange?.(true);
+      map.current?.easeTo({ center: [lng, lat], duration: 600, essential: true });
     },
     enableAutoCentering: () => {
       // Just enable auto-centering without any animation

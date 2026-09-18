@@ -12,6 +12,7 @@ import { useWazeAlerts } from "@/hooks/useWazeAlerts";
 import { useReports } from "@/hooks/useReports";
 import { useSpeedCameras } from "@/hooks/useSpeedCameras";
 import { useSpeedLimit } from "@/hooks/useSpeedLimit";
+import { useReverseGeocode } from "@/hooks/useReverseGeocode";
 import { PROJECT_SHUTDOWN_ENABLED, PROJECT_SHUTDOWN_MESSAGE } from "@/lib/shutdown";
 import type { MapBounds, WazeAlert } from "@/types/waze";
 import { REPORT_TYPES, REPORT_TYPE_META, REPORT_PICKER } from "@/types/report";
@@ -141,7 +142,8 @@ function LiveHome() {
     return false;
   });
   const [isCentered, setIsCentered] = useState(true);
-  const [controlsVisible, setControlsVisible] = useState(true);
+  // Chrome starts hidden: on load only the map + Report button + street chip show
+  const [controlsVisible, setControlsVisible] = useState(false);
   const [pickerLevel, setPickerLevel] = useState<string | null>(null);
   const reportAnchorRef = useRef<{ lat: number; lng: number } | null>(null);
   const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -294,6 +296,9 @@ function LiveHome() {
   const speed = isSimulating ? 25 : realSpeed;
   // Posted speed limit for the road being driven (map matching + tilequery)
   const speedLimitMph = useSpeedLimit(latitude, longitude);
+  // Current street/town for the Tesla-style bottom-right chip
+  const { road: currentRoad, town: currentTown } = useReverseGeocode(latitude, longitude);
+  const currentStreet = [currentRoad, currentTown].filter(Boolean).join(", ");
   const { alerts: wazeAlerts, loading: alertsLoading, cachedTileBounds } = useWazeAlerts({ bounds });
   const { reports, submitReport, vote: voteReport, hasVoted, isOwn, removeReport } = useReports({ bounds });
 
@@ -1442,10 +1447,49 @@ function LiveHome() {
     setBounds(newBounds);
   }, []);
 
+  // Auto-recenter to the driver 10s after the last map interaction
+  // (Tesla behavior, stopwatch-timed). Any pointer/wheel contact resets the countdown.
+  const isCenteredRef = useRef(isCentered);
+  const previewLocationRef = useRef(previewLocation);
+  const isSearchOpenRef = useRef(isSearchOpen);
+  const positionRef = useRef<{ lat: number; lng: number } | null>(null);
+  const autoRecenterTimerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => { isCenteredRef.current = isCentered; }, [isCentered]);
+  useEffect(() => { previewLocationRef.current = previewLocation; }, [previewLocation]);
+  useEffect(() => { isSearchOpenRef.current = isSearchOpen; }, [isSearchOpen]);
+  useEffect(() => {
+    if (latitude && longitude) positionRef.current = { lat: latitude, lng: longitude };
+  }, [latitude, longitude]);
+  useEffect(() => () => {
+    if (autoRecenterTimerRef.current) clearTimeout(autoRecenterTimerRef.current);
+  }, []);
+  const resetAutoRecenterTimer = useCallback(() => {
+    if (autoRecenterTimerRef.current) clearTimeout(autoRecenterTimerRef.current);
+    autoRecenterTimerRef.current = setTimeout(() => {
+      const pos = positionRef.current;
+      if (
+        !isCenteredRef.current &&
+        !previewLocationRef.current &&
+        !isSearchOpenRef.current &&
+        pos &&
+        mapRef.current
+      ) {
+        mapRef.current.autoRecenter(pos.lng, pos.lat);
+        posthog.capture("map_recentered", { source: "auto_idle_10s" });
+      }
+    }, 10000);
+  }, []);
+
   // Callback from Map when centering state changes (user pans away or recenters)
   const handleCenteredChange = useCallback((centered: boolean) => {
     setIsCentered(centered);
-  }, []);
+    if (centered) {
+      if (autoRecenterTimerRef.current) clearTimeout(autoRecenterTimerRef.current);
+    } else {
+      // User panned/pinched away from the driver: start the 10s idle countdown
+      resetAutoRecenterTimer();
+    }
+  }, [resetAutoRecenterTimer]);
 
   // Save avatar pulse preference to localStorage
   const handleToggleAvatarPulse = useCallback((value: boolean) => {
@@ -1483,14 +1527,6 @@ function LiveHome() {
     });
   }, []);
 
-  // Dedicated recenter (shows when panned away, under the zoom controls)
-  const handleRecenter = useCallback(() => {
-    if (latitude && longitude && mapRef.current) {
-      mapRef.current.recenter(longitude, latitude);
-      posthog.capture("map_recentered", { latitude, longitude, source: "recenter_button" });
-    }
-  }, [latitude, longitude]);
-
   // Tesla-style compass: tap re-centers and re-engages tracking when panned away
   const handleCompassTap = useCallback(() => {
     if (!isCentered && latitude && longitude && mapRef.current) {
@@ -1507,20 +1543,6 @@ function LiveHome() {
     }
     toggleFollowMode();
   }, [isCentered, latitude, longitude, followMode, toggleFollowMode]);
-
-  const handleZoomIn = useCallback(() => {
-    mapRef.current?.zoomIn();
-
-    // Track zoom in event
-    posthog.capture("map_zoomed_in");
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    mapRef.current?.zoomOut();
-
-    // Track zoom out event
-    posthog.capture("map_zoomed_out");
-  }, []);
 
   // Filter alerts to show only key types (if enabled)
   const filteredAlerts = showWazeAlerts
@@ -1580,9 +1602,13 @@ function LiveHome() {
       className="relative w-full h-full"
       onPointerDown={(e) => {
         showControlsTemporarily();
+        if (!isCenteredRef.current) resetAutoRecenterTimer();
         if (!(e.target as HTMLElement).closest("[data-style-menu-root]")) {
           setStyleMenuOpen(false);
         }
+      }}
+      onWheel={() => {
+        if (!isCenteredRef.current) resetAutoRecenterTimer();
       }}
     >
       {/* Map */}
@@ -1698,12 +1724,17 @@ function LiveHome() {
 
       {/* Navigate Search + Destination Card */}
       <div className="absolute top-16 left-4 z-30 flex flex-col gap-3 pl-[env(safe-area-inset-left)]">
+        {/* Search trigger is idle-hidden chrome; stays up while search is open */}
+        <div
+          className={`transition-opacity duration-300 ${controlsVisible || isSearchOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        >
         <NavigateSearch
           isDarkMode={effectiveDarkMode}
           onSelectDestination={handleSelectDestination}
           onOpenChange={setIsSearchOpen}
           userLocation={latitude && longitude ? { latitude, longitude } : null}
         />
+        </div>
 
         {/* Preview Card - Shows when a location is searched but not navigating yet */}
         {previewLocation && !destination && !isSearchOpen && (
@@ -1834,7 +1865,7 @@ function LiveHome() {
 
       {/* Speed Badge + Speed Limit - top left, plain blur (no styled tab) */}
       {speed != null && (
-        <div className="absolute top-4 left-4 z-30 flex items-center gap-2 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)]">
+        <div className={`absolute top-4 left-4 z-30 flex items-center gap-2 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
           <div
             className="flex items-baseline gap-1.5 px-4 py-2 rounded-full backdrop-blur-xl bg-black/25 text-white"
             aria-label="Current speed"
@@ -1861,7 +1892,7 @@ function LiveHome() {
       )}
 
       {/* Top Right - Compass + Alert Summary (stacked) */}
-      <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-3 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)]">
+      <div className={`absolute top-4 right-4 z-30 flex flex-col items-end gap-3 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
         {/* Compass/Orientation Toggle */}
         <button
           onClick={handleCompassTap}
@@ -2087,7 +2118,7 @@ function LiveHome() {
             <span className="text-base font-semibold">Report</span>
           </button>
         </div>
-        {/* Settings Button */}
+        {/* Settings Button - part of the idle-hidden chrome */}
         <button
           onClick={() => {
             setShowSettings(true);
@@ -2098,6 +2129,7 @@ function LiveHome() {
             w-16 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center
             ${getButtonStyles(effectiveDarkMode)}
             shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
+            ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}
           `}
           aria-label="Settings"
         >
@@ -2111,7 +2143,7 @@ function LiveHome() {
       {/* Bottom Right - Control Buttons */}
       <div className="absolute bottom-6 right-4 z-30 flex items-end gap-3 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]">
         {/* Dev Mode - Police Alert Test Button */}
-        {isDevMode && (
+        {isDevMode && controlsVisible && (
           <button
             onClick={() => {
               setPoliceAlertToast({ show: true, expanding: true });
@@ -2132,14 +2164,14 @@ function LiveHome() {
         )}
 
         {/* Dev Mode Badge */}
-        {isDevMode && !route && (
+        {isDevMode && controlsVisible && !route && (
           <div className="px-4 h-16 rounded-xl backdrop-blur-xl flex items-center justify-center bg-purple-500/80 text-white border-purple-400/30 shadow-lg border">
             <span className="text-sm font-bold uppercase tracking-wider">Dev Mode</span>
           </div>
         )}
 
         {/* Dev Mode - Simulation Controls */}
-        {isDevMode && route && (
+        {isDevMode && controlsVisible && route && (
           <button
             onClick={isSimulating ? stopSimulation : startSimulation}
             className={`
@@ -2165,55 +2197,22 @@ function LiveHome() {
             )}
           </button>
         )}
-
-        {/* Zoom Controls - single vertical pill */}
-        <div
-          className={`
-            w-16 rounded-xl backdrop-blur-xl flex flex-col overflow-hidden
-            ${getButtonStyles(effectiveDarkMode)}
-            shadow-lg border
-          `}
-        >
-          <button
-            onClick={handleZoomIn}
-            className={`
-              w-16 h-12 flex items-center justify-center
-              transition-all duration-200 hover:scale-105 active:scale-95
-            `}
-            aria-label="Zoom in"
-          >
-            <PlusIcon className="w-7 h-7" />
-          </button>
-          <div className={`h-px mx-3 ${effectiveDarkMode ? "bg-white/10" : "bg-black/10"}`} />
-          <button
-            onClick={handleZoomOut}
-            className={`
-              w-16 h-12 flex items-center justify-center
-              transition-all duration-200 hover:scale-105 active:scale-95
-            `}
-            aria-label="Zoom out"
-          >
-            <MinusIcon className="w-7 h-7" />
-          </button>
-        </div>
-
-        {/* Recenter - appears under zoom when panned away */}
-        {!isCentered && (
-          <button
-            onClick={handleRecenter}
-            className={`
-              w-16 h-12 rounded-xl backdrop-blur-xl flex items-center justify-center
-              ${getButtonStyles(effectiveDarkMode)}
-              shadow-lg border transition-all duration-200 hover:scale-105 active:scale-95
-            `}
-            aria-label="Recenter map"
-          >
-            <RecenterIcon className="w-6 h-6" />
-          </button>
-        )}
       </div>
 
 
+
+      {/* Current street chip - bottom right, always visible (Tesla-style) */}
+      {currentStreet && (
+        <div className="absolute bottom-6 right-4 z-20 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pointer-events-none">
+          <div
+            className={`px-3 py-1.5 rounded-lg backdrop-blur-md text-xs font-medium ${
+              effectiveDarkMode ? "bg-black/35 text-white/75" : "bg-white/75 text-black/70"
+            }`}
+          >
+            {currentStreet}
+          </div>
+        </div>
+      )}
 
       {/* Police Alert - Full Screen Border Glow Effect */}
       {policeAlertToast?.show && (
@@ -2508,15 +2507,6 @@ function ShutdownHome() {
 
 
 
-function RecenterIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="7" />
-      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
 
 function PlusIcon({ className }: { className?: string }) {
   return (
@@ -2526,13 +2516,6 @@ function PlusIcon({ className }: { className?: string }) {
   );
 }
 
-function MinusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
-    </svg>
-  );
-}
 
 function CrosshairIcon({ className }: { className?: string }) {
   return (
