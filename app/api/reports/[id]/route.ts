@@ -24,9 +24,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
     const { id } = await ctx.params;
-    const deleted = await deleteReport(id);
-    if (!deleted) {
+    const token = request.headers.get("x-delete-token");
+    const result = await deleteReport(id, token);
+    if (result === "not_found") {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
+    }
+    if (result === "forbidden") {
+      return NextResponse.json({ error: "Not your report" }, { status: 403 });
     }
     return NextResponse.json({ deleted: true });
   } catch (err) {

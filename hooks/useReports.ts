@@ -18,24 +18,36 @@ function markVoted(id: string, vote: "confirm" | "dismiss"): void {
 
 const OWN_REPORTS_KEY = "radar-my-reports";
 
-function getOwnIds(): string[] {
+interface OwnReportEntry {
+  id: string;
+  token?: string;
+}
+
+// Entries may be legacy bare ids (pre-token reports) or {id, token} objects.
+function getOwnEntries(): OwnReportEntry[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(OWN_REPORTS_KEY) || "[]");
+    const raw = JSON.parse(localStorage.getItem(OWN_REPORTS_KEY) || "[]");
+    if (!Array.isArray(raw)) return [];
+    return raw.map((e) => (typeof e === "string" ? { id: e } : e));
   } catch {
     return [];
   }
 }
 
-function markOwn(id: string): void {
+function markOwn(id: string, token?: string): void {
   if (typeof window === "undefined") return;
-  const ids = getOwnIds();
-  ids.push(id);
-  localStorage.setItem(OWN_REPORTS_KEY, JSON.stringify(ids.slice(-50)));
+  const entries = getOwnEntries();
+  entries.push({ id, token });
+  localStorage.setItem(OWN_REPORTS_KEY, JSON.stringify(entries.slice(-50)));
+}
+
+function getOwnToken(id: string): string | undefined {
+  return getOwnEntries().find((e) => e.id === id)?.token;
 }
 
 function isOwn(id: string): boolean {
-  return getOwnIds().includes(id);
+  return getOwnEntries().some((e) => e.id === id);
 }
 
 interface UseReportsOptions {
@@ -103,7 +115,7 @@ export function useReports({
         const data = await response.json();
         const report = data.report as UserReport;
         setReports((prev) => [...prev.filter((r) => r.id !== report.id), report]);
-        markOwn(report.id);
+        markOwn(report.id, report.deleteToken);
         return report;
       } catch (err) {
         console.error("Failed to submit report:", err);
@@ -117,7 +129,11 @@ export function useReports({
 
   const removeReport = useCallback(async (id: string): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/reports/${id}`, { method: "DELETE" });
+      const token = getOwnToken(id);
+      const res = await fetch(`/api/reports/${id}`, {
+        method: "DELETE",
+        headers: token ? { "x-delete-token": token } : {},
+      });
       if (!res.ok) return false;
       setReports((prev) => prev.filter((r) => r.id !== id));
       return true;

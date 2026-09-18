@@ -14,7 +14,7 @@ import {
 } from "@/lib/redis";
 
 // Simple admin auth - you can make this more secure
-const ADMIN_SECRET = process.env.ADMIN_SECRET || "radar-admin-2026";
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "" // no fallback: unset ADMIN_SECRET = endpoint stays closed;
 const INBOUND_API_KEY = process.env.INBOUND_API_KEY;
 const INBOUND_API_URL = "https://inbound.new/api/v2/emails";
 const ALERT_EMAIL = process.env.ALERT_EMAIL || "";
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const providedSecret = authHeader?.replace("Bearer ", "");
   
-  if (providedSecret !== ADMIN_SECRET) {
+  if (!ADMIN_SECRET || providedSecret !== ADMIN_SECRET) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401 }
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const providedSecret = authHeader?.replace("Bearer ", "");
   
-  if (providedSecret !== ADMIN_SECRET) {
+  if (!ADMIN_SECRET || providedSecret !== ADMIN_SECRET) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401 }
@@ -196,7 +196,7 @@ export async function PUT(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const providedSecret = authHeader?.replace("Bearer ", "");
   
-  if (providedSecret !== ADMIN_SECRET) {
+  if (!ADMIN_SECRET || providedSecret !== ADMIN_SECRET) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401 }

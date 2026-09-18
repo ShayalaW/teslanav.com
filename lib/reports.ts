@@ -69,10 +69,16 @@ async function pruneExpired(entries: Record<string, unknown>, now: number): Prom
   return live;
 }
 
+// Remove the creator-only delete token before a report leaves the server.
+function stripToken(report: UserReport): UserReport {
+  const { deleteToken, ...rest } = report;
+  return rest;
+}
+
 export async function listReports(): Promise<UserReport[]> {
   const entries = await redis.hgetall<Record<string, unknown>>(REPORTS_HASH);
   if (!entries) return [];
-  return pruneExpired(entries, Date.now());
+  return pruneExpired(entries, Date.now()).then((reports) => reports.map(stripToken));
 }
 
 export async function createReport(type: ReportType, lat: number, lng: number): Promise<UserReport> {
@@ -86,6 +92,7 @@ export async function createReport(type: ReportType, lat: number, lng: number): 
     expiresAt: now + REPORT_TTL_MS[type],
     confirms: 0,
     dismisses: 0,
+    deleteToken: crypto.randomUUID(),
   };
   await redis.hset(REPORTS_HASH, { [report.id]: JSON.stringify(report) });
   return report;
@@ -119,11 +126,25 @@ export async function voteReport(id: string, vote: "confirm" | "dismiss"): Promi
   }
 
   await redis.hset(REPORTS_HASH, { [id]: JSON.stringify(report) });
-  return { status: "ok", report };
+  return { status: "ok", report: stripToken(report) };
 }
 
-export async function deleteReport(id: string): Promise<boolean> {
-  return (await redis.hdel(REPORTS_HASH, id)) > 0;
+// Delete requires the report's creator-only delete token.
+// Returns "deleted" | "forbidden" | "not_found".
+export async function deleteReport(
+  id: string,
+  token: string | null
+): Promise<"deleted" | "forbidden" | "not_found"> {
+  const raw = await redis.hget<string>(REPORTS_HASH, id);
+  const report = parseReport(raw);
+  if (!report || report.expiresAt <= Date.now()) {
+    return "not_found";
+  }
+  if (!token || !report.deleteToken || report.deleteToken !== token) {
+    return "forbidden";
+  }
+  await redis.hdel(REPORTS_HASH, id);
+  return "deleted";
 }
 
 // Rate limit helpers (per IP, fixed window)

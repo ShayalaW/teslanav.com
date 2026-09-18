@@ -24,6 +24,9 @@ export interface UserReport {
   expiresAt: number;
   confirms: number;
   dismisses: number;
+  // Creator-only secret, issued on POST and required to delete the report.
+  // Never included in list/vote responses (stripped server-side).
+  deleteToken?: string;
 }
 
 // All accepted types (includes legacy "hazard" for reports already on the map)
